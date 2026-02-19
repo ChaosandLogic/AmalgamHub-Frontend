@@ -1,0 +1,149 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 100;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  color: var(--accent-primary);
+}
+
+.logo:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.logoIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.logoIconInner {
+  position: relative;
+  z-index: 2;
+}
+
+.logoBadge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-primary);
+  z-index: 3;
+}
+
+.logoBadgeDot {
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.navDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+.navLink {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+
+.navLink:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
+}
+
+.navLinkActive {
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: var(--accent-primary-light);
+}
+
+.navLinkActive:hover {
+  background: var(--accent-primary-light);
+  color: var(--accent-primary);
+}
+
+.navLinkDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.welcomeText {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.welcomeName {
+  color: var(--text);
+}
+
+.logoutButton {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logoutButton:hover {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+

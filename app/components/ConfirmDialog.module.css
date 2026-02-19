@@ -1,0 +1,118 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.dialog {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: var(--shadow-xl);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.iconDanger {
+  color: var(--error);
+}
+
+.iconWarning {
+  color: var(--warning);
+}
+
+.iconInfo {
+  color: var(--accent-primary);
+}
+
+.content {
+  flex: 1;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+  border: none;
+}
+
+.buttonCancel {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.buttonCancel:hover {
+  background: var(--bg-secondary);
+}
+
+.buttonConfirm {
+  color: white;
+}
+
+.buttonDanger {
+  background: var(--error);
+}
+
+.buttonDanger:hover {
+  background: #dc2626;
+}
+
+.buttonWarning {
+  background: var(--warning);
+}
+
+.buttonWarning:hover {
+  background: #d97706;
+}
+
+.buttonInfo {
+  background: var(--accent-primary);
+}
+
+.buttonInfo:hover {
+  background: var(--accent-primary-hover);
+}
+
