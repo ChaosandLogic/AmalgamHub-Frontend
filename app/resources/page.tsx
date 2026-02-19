@@ -477,7 +477,7 @@ export default function ResourcesPage() {
                   Type *
                 </label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                  {['person', 'team', 'vehicle', 'equipment', 'room'].map(type => (
+                  {['person', 'vehicle', 'equipment', 'room'].map(type => (
                     <button
                       key={type}
                       type="button"
