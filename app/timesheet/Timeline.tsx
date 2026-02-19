@@ -1,17 +1,14 @@
 'use client'
 import { useEffect, useMemo, useRef } from 'react'
 import { useToast } from '../components/Toast'
-import LoadingSpinner from '../components/LoadingSpinner'
 import { getLocalDateString } from '../lib/utils/dateUtils'
 import {
   DAYS,
   FULL_DAY_SLOTS,
   SLOT_WIDTH_PX,
   DEFAULT_SCROLL_START_SLOT,
-  ENTRY_TYPE_COLORS,
   type EntryType,
 } from './constants'
-import type { RowData } from './types'
 import {
   formatDateInput,
   computeWeeklySummary,
@@ -89,8 +86,6 @@ export default function Timeline({ userName }: TimelineProps) {
     addRow,
     removeRow,
     serialize,
-    loadAutosavedForWeek,
-    hydrateFromSavedInComponent,
     justSubmittedRef,
     nextRowId,
   } = data
@@ -118,11 +113,8 @@ export default function Timeline({ userName }: TimelineProps) {
     entryTypeConfirm,
     setEntryTypeConfirm,
     showConfirmDialog,
-    setShowConfirmDialog,
     showOverlapWarning,
-    setShowOverlapWarning,
     overlapDetails,
-    setOverlapDetails,
     isDraggingRef,
     autoSave,
     trackId,

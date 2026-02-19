@@ -83,7 +83,7 @@ export function useTimesheetData({
     )
   }
 
-  function removeRow(dayIndex: number, rowId: number) {
+  function removeRow(dayIndex: number, rowId: string) {
     setRowsByDay((prev) =>
       prev.map((rows, d) =>
         d === dayIndex ? rows.filter((r: any) => r.id !== rowId) : rows
