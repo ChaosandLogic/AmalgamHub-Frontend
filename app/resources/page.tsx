@@ -4,16 +4,18 @@ import Header from '../components/Header'
 import { useToast } from '../components/Toast'
 import { getResourceIcon, getResourceDefaultColor } from '../lib/utils/resourceUtils'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useUser } from '../lib/hooks/useUser'
+import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api/client'
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 const DEFAULT_AVAILABILITY = { sun: 0, mon: 8, tue: 8, wed: 8, thu: 8, fri: 8, sat: 0 }
 
 export default function ResourcesPage() {
   const toast = useToast()
+  const { user } = useUser()
   const [resources, setResources] = useState<any[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [editingResource, setEditingResource] = useState<any>(null)
-  const [user, setUser] = useState<{ role: string } | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -39,38 +41,22 @@ export default function ResourcesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<any>(null)
 
   useEffect(() => {
-    loadUser()
     loadResources()
     loadValueLists()
   }, [])
 
-  async function loadUser() {
-    try {
-      const res = await fetch('/api/user', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setUser(response.data?.user || response.user)
-      }
-    } catch (error) {
-      console.error('Error loading user:', error)
-    }
-  }
-
   async function loadValueLists() {
     try {
-      const res = await fetch('/api/global-settings', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const settings = response.data?.settings || response.settings
-        const deptList = Array.isArray(settings?.department_list) 
-          ? settings.department_list 
-          : (settings?.department_list ? JSON.parse(settings.department_list) : [])
-        const roleList = Array.isArray(settings?.job_role_list) 
-          ? settings.job_role_list 
-          : (settings?.job_role_list ? JSON.parse(settings.job_role_list) : [])
-        setDepartments(deptList)
-        setJobRoles(roleList)
-      }
+      const data = await apiGet<{ settings: any }>('/api/global-settings')
+      const settings = data.settings
+      const deptList = Array.isArray(settings?.department_list) 
+        ? settings.department_list 
+        : (settings?.department_list ? JSON.parse(settings.department_list) : [])
+      const roleList = Array.isArray(settings?.job_role_list) 
+        ? settings.job_role_list 
+        : (settings?.job_role_list ? JSON.parse(settings.job_role_list) : [])
+      setDepartments(deptList)
+      setJobRoles(roleList)
     } catch (error) {
       console.error('Error loading value lists:', error)
     }
@@ -78,57 +64,44 @@ export default function ResourcesPage() {
 
   async function loadResources() {
     try {
-      const res = await fetch('/api/resources', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setResources(response.data?.resources || response.resources || [])
-      }
+      const data = await apiGet<{ resources: any[] }>('/api/resources')
+      setResources(data.resources || [])
     } catch (error) {
       console.error('Error loading resources:', error)
     }
   }
 
   async function saveResource() {
+    const body = {
+      name: formData.name,
+      email: formData.email || null,
+      type: formData.type,
+      capacity: formData.capacity,
+      color: formData.color,
+      department: formData.department || null,
+      job_role: formData.job_role || null,
+      availabilityTemplate: formData.availability
+    }
     try {
-      const url = editingResource 
-        ? `/api/resources/${editingResource.id}`
-        : '/api/resources'
-      const method = editingResource ? 'PUT' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email || null,
-          type: formData.type,
-          capacity: formData.capacity,
-          color: formData.color,
-          department: formData.department || null,
-          job_role: formData.job_role || null,
-          availabilityTemplate: formData.availability
-        })
-      })
-      
-      if (response.ok) {
-        await loadResources()
-        setShowDialog(false)
-        setEditingResource(null)
-        setFormData({
-          name: '',
-          email: '',
-          type: 'person',
-          capacity: 1,
-          color: getResourceDefaultColor('person'),
-          department: '',
-          job_role: '',
-          availability: { ...DEFAULT_AVAILABILITY }
-        })
-        toast.success(editingResource ? 'Resource updated' : 'Resource created')
+      if (editingResource) {
+        await apiPut(`/api/resources/${editingResource.id}`, body)
       } else {
-        throw new Error('Failed to save resource')
+        await apiPost('/api/resources', body)
       }
+      await loadResources()
+      setShowDialog(false)
+      setEditingResource(null)
+      setFormData({
+        name: '',
+        email: '',
+        type: 'person',
+        capacity: 1,
+        color: getResourceDefaultColor('person'),
+        department: '',
+        job_role: '',
+        availability: { ...DEFAULT_AVAILABILITY }
+      })
+      toast.success(editingResource ? 'Resource updated' : 'Resource created')
     } catch (error) {
       console.error('Error saving resource:', error)
       toast.error('Failed to save resource')
@@ -141,24 +114,13 @@ export default function ResourcesPage() {
 
   async function confirmDeleteResource() {
     if (!showDeleteConfirm) return
-    
     try {
-      const res = await fetch(`/api/resources/${showDeleteConfirm.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      if (res.ok) {
-        toast.success('Resource deleted successfully')
-        setShowDeleteConfirm(null)
-        loadResources()
-      } else {
-        const errorData = await res.json().catch(() => ({}))
-        toast.error(errorData.message || 'Failed to delete resource')
-      }
-    } catch (error: any) {
-      console.error('Error deleting resource:', error)
-      toast.error('Failed to delete resource')
+      await apiDelete(`/api/resources/${showDeleteConfirm.id}`)
+      toast.success('Resource deleted successfully')
+      setShowDeleteConfirm(null)
+      loadResources()
+    } catch (error: unknown) {
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to delete resource')
     }
   }
 

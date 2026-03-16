@@ -5,16 +5,18 @@ import Header from '../components/Header'
 import { useToast } from '../components/Toast'
 import { Search, RefreshCw } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useUser } from '../lib/hooks/useUser'
+import { apiGet, apiPost, apiPut, apiDelete } from '../lib/api/client'
 
 export default function ProjectsPage() {
   const router = useRouter()
   const toast = useToast()
   const [projects, setProjects] = useState<any[]>([])
+  const { user } = useUser()
   const [searchTerm, setSearchTerm] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [showDialog, setShowDialog] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)
-  const [user, setUser] = useState<{ role: string } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -32,41 +34,19 @@ export default function ProjectsPage() {
   })
 
   useEffect(() => {
-    loadUser()
     loadProjects()
   }, [])
-
-  async function loadUser() {
-    try {
-      const res = await fetch('/api/user', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setUser(response.data?.user || response.user)
-      }
-    } catch (error) {
-      console.error('Error loading user:', error)
-    }
-  }
 
   async function loadProjects(forceRefresh = false) {
     setIsLoading(true)
     try {
       const url = forceRefresh ? '/api/projects?refresh=true' : '/api/projects'
-      const res = await fetch(url, { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const data = response.data || response
-        console.log('Projects loaded:', data.projects?.length || 0, 'projects from', data.source || 'unknown')
-        setProjects(data.projects || [])
-        setDataSource(data.source || '')
-        if (forceRefresh) {
-          const source = data.source === 'filemaker' ? 'FileMaker' : 'SQLite'
-          toast.success(`Loaded ${data.projects?.length || 0} projects from ${source}`)
-        }
-      } else {
-        const errorData = await res.json().catch(() => ({}))
-        console.error('Error loading projects:', res.status, errorData)
-        toast.error('Failed to load projects')
+      const data = await apiGet<{ projects: any[]; source?: string }>(url)
+      setProjects(data.projects || [])
+      setDataSource(data.source || '')
+      if (forceRefresh) {
+        const source = data.source === 'filemaker' ? 'FileMaker' : 'SQLite'
+        toast.success(`Loaded ${data.projects?.length || 0} projects from ${source}`)
       }
     } catch (error) {
       console.error('Error loading projects:', error)
@@ -77,48 +57,28 @@ export default function ProjectsPage() {
   }
 
   async function saveProject() {
+    const body = {
+      name: formData.name,
+      code: formData.code,
+      clientName: formData.clientName,
+      status: formData.status,
+      startDate: formData.startDate || null,
+      endDate: formData.endDate || null,
+      budget: formData.budget ? parseFloat(formData.budget) : null,
+      budgetType: formData.budgetType,
+      color: formData.color
+    }
     try {
-      const url = editingProject 
-        ? `/api/projects/${editingProject.id}`
-        : '/api/projects'
-      const method = editingProject ? 'PUT' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: formData.name,
-          code: formData.code,
-          clientName: formData.clientName,
-          status: formData.status,
-          startDate: formData.startDate || null,
-          endDate: formData.endDate || null,
-          budget: formData.budget ? parseFloat(formData.budget) : null,
-          budgetType: formData.budgetType,
-          color: formData.color
-        })
-      })
-      
-      if (response.ok) {
-        await loadProjects()
-        setShowDialog(false)
-        setEditingProject(null)
-        setFormData({
-          name: '',
-          code: '',
-          clientName: '',
-          status: 'active',
-          startDate: '',
-          endDate: '',
-          budget: '',
-          budgetType: 'hours',
-          color: '#059669' // Default to success color hex value
-        })
-        toast.success(editingProject ? 'Project updated' : 'Project created')
+      if (editingProject) {
+        await apiPut(`/api/projects/${editingProject.id}`, body)
       } else {
-        throw new Error('Failed to save project')
+        await apiPost('/api/projects', body)
       }
+      await loadProjects()
+      setShowDialog(false)
+      setEditingProject(null)
+      setFormData({ name: '', code: '', clientName: '', status: 'active', startDate: '', endDate: '', budget: '', budgetType: 'hours', color: '#059669' })
+      toast.success(editingProject ? 'Project updated' : 'Project created')
     } catch (error) {
       console.error('Error saving project:', error)
       toast.error('Failed to save project')
@@ -132,21 +92,12 @@ export default function ProjectsPage() {
 
   async function deleteProject() {
     if (!projectToDelete) return
-    
     try {
-      const response = await fetch(`/api/projects/${projectToDelete.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      if (response.ok) {
-        await loadProjects()
-        toast.success('Project deleted')
-        setShowDeleteConfirm(false)
-        setProjectToDelete(null)
-      } else {
-        throw new Error('Failed to delete project')
-      }
+      await apiDelete(`/api/projects/${projectToDelete.id}`)
+      await loadProjects()
+      toast.success('Project deleted')
+      setShowDeleteConfirm(false)
+      setProjectToDelete(null)
     } catch (error) {
       console.error('Error deleting project:', error)
       toast.error('Failed to delete project')

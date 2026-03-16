@@ -43,28 +43,24 @@ export default function RootLayout({
                   // localStorage not available, ignore
                 }
                 
-                // Suppress WebSocket errors from Next.js HMR/Turbopack
-                // These are common in development and don't affect functionality
-                const originalError = console.error;
-                console.error = function(...args) {
-                  const message = args[0]?.toString() || '';
-                  // Suppress generic WebSocket errors from Next.js
-                  if (message.includes('websocket error') || 
-                      message.includes('WebSocket') && message.includes('error') ||
-                      message.includes('HMR') && message.includes('error')) {
-                    // Silently ignore - these are development-only HMR connection issues
-                    return;
-                  }
-                  // Call original console.error for other errors
-                  originalError.apply(console, args);
-                };
+                // Suppress HMR WebSocket noise in development only
+                if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') {
+                  const originalError = console.error;
+                  console.error = function(...args) {
+                    const message = args[0]?.toString() || '';
+                    if (message.includes('WebSocket') && (message.includes('error') || message.includes('HMR'))) {
+                      return;
+                    }
+                    originalError.apply(console, args);
+                  };
+                }
               })();
             `,
           }}
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable}`}
         suppressHydrationWarning
       >
         <DarkModeInit />

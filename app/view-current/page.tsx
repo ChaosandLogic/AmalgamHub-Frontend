@@ -1,67 +1,41 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '../components/Header'
+import LoadingSpinner from '../components/LoadingSpinner'
+import { useApiData } from '../lib/hooks/useApiData'
 
 function ViewCurrentContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const userId = searchParams.get('userId')
-  const from = searchParams.get('from') // Get the referring page
+  const from = searchParams.get('from')
 
-  const [timesheet, setTimesheet] = useState<any>(null)
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { data: user, loading: userLoading, error: userError } = useApiData<any>(
+    userId ? `/api/users/${userId}` : null,
+    { transform: (raw: any) => raw?.user ?? null }
+  )
+  const { data: timesheet, loading: tsLoading, error: tsError } = useApiData<any>(
+    userId ? `/api/timesheets/draft/${userId}` : null,
+    { transform: (raw: any) => raw?.timesheet ?? null }
+  )
 
-  // Determine where to navigate back to
+  const loading = userLoading || tsLoading
+  const error = userError || tsError
+
   const getReturnPath = () => {
     if (from === 'admin') return '/admin'
-    // Default fallback
     return '/admin'
   }
-
-  useEffect(() => {
-    if (!userId) {
-      setError('No user ID provided')
-      setLoading(false)
-      return
-    }
-
-    const loadData = async () => {
-      try {
-        // Load user info
-        const userRes = await fetch(`/api/user/${userId}`, { credentials: 'include' })
-        if (!userRes.ok) throw new Error('Failed to load user')
-        const userResponse = await userRes.json()
-        const user = userResponse.data?.user || userResponse.user
-        setUser(user)
-
-        // Load autosaved timesheet
-        const timesheetRes = await fetch(`/api/autosaved/${userId}`, { credentials: 'include' })
-        if (timesheetRes.status === 404) {
-          setError('No current timesheet found for this user')
-        } else if (!timesheetRes.ok) {
-          throw new Error('Failed to load timesheet')
-        } else {
-          const timesheetResponse = await timesheetRes.json()
-          const timesheet = timesheetResponse.data?.timesheet || timesheetResponse.timesheet
-          setTimesheet(timesheet)
-        }
-      } catch (e: any) {
-        setError(e.message || 'An unexpected error occurred')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [userId])
 
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <Header />
-        <div style={{ padding: 16, textAlign: 'center' }}>Loading current timesheet...</div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 }}>
+          <LoadingSpinner size={32} />
+          <span>Loading current timesheet...</span>
+        </div>
       </div>
     )
   }
@@ -279,7 +253,12 @@ function ViewCurrentContent() {
 
 export default function ViewCurrentPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: '100vh' }}>
+        <LoadingSpinner size={32} />
+        <span>Loading...</span>
+      </div>
+    }>
       <ViewCurrentContent />
     </Suspense>
   )

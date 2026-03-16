@@ -2,9 +2,12 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Header from '../components/Header'
-import GanttChart from './GanttChart'
+import LoadingSpinner from '../components/LoadingSpinner'
+import { useUser } from '../lib/hooks/useUser'
+import GanttChart from './components/GanttChart'
 import { useToast } from '../components/Toast'
 import { getLocalDateString } from '../lib/utils/dateUtils'
+import { useApiData } from '../lib/hooks/useApiData'
 
 function GanttPageContent() {
   const searchParams = useSearchParams()
@@ -26,10 +29,18 @@ function GanttPageContent() {
   }
   
   const [projectId, setProjectId] = useState<string | null>(getInitialProjectId())
-  const [projects, setProjects] = useState<any[]>([])
   const [selectedProject, setSelectedProject] = useState<any | null>(null)
-  const [users, setUsers] = useState<any[]>([])
-  const [user, setUser] = useState<{ role?: string } | null>(null)
+  const { user } = useUser()
+
+  const { data: projectsData } = useApiData<any[]>('/api/projects', {
+    transform: (raw: any) => raw?.projects ?? [],
+  })
+  const projects = projectsData ?? []
+
+  const { data: usersData } = useApiData<any[]>('/api/users', {
+    transform: (raw: any) => raw?.users ?? [],
+  })
+  const users = usersData ?? []
   
   // Store last visited project in localStorage
   const storeLastProjectId = (projId: string | null) => {
@@ -131,58 +142,20 @@ function GanttPageContent() {
     }
   }
 
-  // Load projects
+  // Sync selectedProject and URL when projects load or projectId changes
   useEffect(() => {
-    fetch('/api/projects', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data?.projects) {
-          setProjects(data.data.projects)
-          
-          // If projectId exists, find and set the selected project
-          // This handles both URL params and localStorage restoration
-          if (projectId) {
-            const project = data.data.projects.find((p: any) => p.id === projectId)
-            if (project) {
-              setSelectedProject(project)
-              // Update URL if we loaded from localStorage and URL doesn't have it
-              if (!searchParams.get('projectId')) {
-                router.push(`/gantt?projectId=${projectId}`)
-              }
-            } else {
-              // Project not found, clear it
-              setProjectId(null)
-              storeLastProjectId(null)
-            }
-          }
-        }
-      })
-      .catch(err => console.error('Error loading projects:', err))
-  }, [projectId, searchParams, router])
-
-  // Load current user (for role-based visibility)
-  useEffect(() => {
-    fetch('/api/user', { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        const u = data?.data?.user ?? data?.user
-        if (u) setUser(u)
-      })
-      .catch(() => {})
-  }, [])
-
-  // Load users for Created By filter
-  useEffect(() => {
-    fetch('/api/users', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        const users = data.success && data.data?.users 
-          ? data.data.users 
-          : data.users || []
-        setUsers(users)
-      })
-      .catch(err => console.error('Error loading users:', err))
-  }, [])
+    if (!projects.length) return
+    if (projectId) {
+      const project = projects.find((p: any) => p.id === projectId)
+      if (project) {
+        setSelectedProject(project)
+        if (!searchParams.get('projectId')) router.push(`/gantt?projectId=${projectId}`)
+      } else {
+        setProjectId(null)
+        storeLastProjectId(null)
+      }
+    }
+  }, [projects, projectId, searchParams, router])
 
   // Update URL when project changes
   const handleProjectChange = (newProjectId: string | null) => {
@@ -256,9 +229,9 @@ function GanttPageContent() {
       // Save PDF
       pdf.save(filename)
       toast.success('PDF exported successfully!')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error exporting PDF:', error)
-      toast.error(error.message || 'Failed to export PDF. Please ensure html2canvas and jspdf are installed.')
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to export PDF. Please ensure html2canvas and jspdf are installed.')
     }
   }
 
@@ -495,7 +468,8 @@ export default function GanttPage() {
     <Suspense fallback={
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         <Header />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: 'var(--bg-secondary)' }}>
+          <LoadingSpinner size={32} />
           <span style={{ color: 'var(--text-secondary)' }}>Loading...</span>
         </div>
       </div>

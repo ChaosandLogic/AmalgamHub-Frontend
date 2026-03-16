@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-
-const DEFAULT_DASHBOARD_ROUTE = '/schedule'
+import { DEFAULT_DASHBOARD_ROUTE } from './app/lib/constants/routes'
 
 const PUBLIC_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/'])
 const ADMIN_PATHS = new Set(['/admin'])

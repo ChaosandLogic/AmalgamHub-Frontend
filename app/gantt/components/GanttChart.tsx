@@ -1,16 +1,20 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useToast } from '../components/Toast'
-import { clamp, getDateForDay, getLocalDateString, parseLocalDateString, normalizeToMidnight, getDayIndex } from '../lib/utils/dateUtils'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useToast } from '../../components/Toast'
+import { useUser } from '../../lib/hooks/useUser'
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '../../lib/api/client'
+import type { GanttTask } from '../../lib/types/gantt'
+import type { CurrentUser } from '../../lib/types/user'
+import { clamp, getDateForDay, getLocalDateString, parseLocalDateString, normalizeToMidnight, getDayIndex } from '../../lib/utils/dateUtils'
 import { 
   DAY_COLUMN_WIDTH, 
   ROW_HEIGHT, 
   MONTHS_TO_DISPLAY,
   EDGE_THRESHOLD
-} from '../lib/constants/gantt'
-import GanttTimelineHeader from './components/GanttTimelineHeader'
-import GanttTaskRow from './components/GanttTaskRow'
-import TaskDialog from './components/TaskDialog'
+} from '../../lib/constants/gantt'
+import GanttTimelineHeader from './GanttTimelineHeader'
+import GanttTaskRow from './GanttTaskRow'
+import TaskDialog from './TaskDialog'
 
 interface GanttChartProps {
   monthStart: Date
@@ -20,8 +24,8 @@ interface GanttChartProps {
 
 export default function GanttChart({ monthStart, projectId, onTaskCreated }: GanttChartProps) {
   const toast = useToast()
+  const { user } = useUser()
   const timelineRef = useRef<HTMLDivElement>(null)
-  const [user, setUser] = useState<{ role: string } | null>(null)
   
   // Calculate total days for 6 months ahead
   const totalDays = useMemo(() => {
@@ -31,11 +35,11 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }, [monthStart])
   
-  const [tasks, setTasks] = useState<any[]>([])
+  const [tasks, setTasks] = useState<GanttTask[]>([])
   const [showTaskDialog, setShowTaskDialog] = useState(false)
-  const [newTaskData, setNewTaskData] = useState<any>(null)
-  const [editingTask, setEditingTask] = useState<any>(null)
-  const [users, setUsers] = useState<any[]>([])
+  const [newTaskData, setNewTaskData] = useState<{ startDate: string; endDate: string } | null>(null)
+  const [editingTask, setEditingTask] = useState<GanttTask | null>(null)
+  const [users, setUsers] = useState<CurrentUser[]>([])
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null)
   const [editingTitleValue, setEditingTitleValue] = useState<string>('')
 
@@ -100,63 +104,30 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
   } | null>(null)
   const isDraggingRef = useRef(false)
 
-  // Load user
-  useEffect(() => {
-    fetch('/api/user', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data?.user) {
-          setUser(data.data.user)
-        }
-      })
-      .catch(err => console.error('Error loading user:', err))
-  }, [])
-
   // Load users for assignee dropdown
   useEffect(() => {
-    fetch('/api/users', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        // Handle both old and new response formats
-        const users = data.success && data.data?.users 
-          ? data.data.users 
-          : data.users || []
-        setUsers(users)
-      })
+    apiGet<{ users: CurrentUser[] }>('/api/users')
+      .then(data => setUsers(data.users || []))
       .catch(err => console.error('Error loading users:', err))
   }, [])
 
   // Load tasks
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     try {
       const params = new URLSearchParams()
       if (projectId) params.append('projectId', projectId)
-      
-      // Don't filter by date range - show all tasks for the project
-      // Tasks outside the visible range will just be positioned off-screen
-      
-      const response = await fetch(`/api/gantt/tasks?${params.toString()}`, {
-        credentials: 'include'
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to load tasks')
-      }
-      
-      const data = await response.json()
-      if (data.success && data.data?.tasks) {
-        setTasks(data.data.tasks)
-      }
+
+      const data = await apiGet<{ tasks: GanttTask[] }>(`/api/gantt/tasks?${params.toString()}`, { defaultErrorMessage: 'Failed to load tasks' })
+      setTasks(data.tasks || [])
     } catch (error) {
       console.error('Error loading tasks:', error)
       toast.error('Failed to load tasks')
     }
-  }
+  }, [projectId, toast])
 
   useEffect(() => {
     loadTasks()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthStart, projectId, totalDays])
+  }, [loadTasks, monthStart, totalDays])
 
   // Global mouse handlers
   useEffect(() => {
@@ -251,7 +222,7 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     }
   }, [totalDays, monthStart, projectId, tasks])
 
-  function onMouseDownCell(taskRowId: string, dayIndex: number, e: any) {
+  function onMouseDownCell(taskRowId: string, dayIndex: number, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     
@@ -268,7 +239,7 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     }
   }
 
-  function onMouseDownTask(task: any, e: any) {
+  function onMouseDownTask(task: GanttTask, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     
@@ -423,24 +394,13 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     newEndDate.setDate(newEndDate.getDate() + daysDiff)
     
     try {
-      const response = await fetch(`/api/gantt/tasks/${task.id}/move`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ dayOffset: daysDiff })
-      })
-      
-      if (response.ok) {
-        await loadTasks()
-        toast.success('Task moved')
-        setDragPreview({})
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to move task')
-      }
-    } catch (error) {
+      await apiPatch(`/api/gantt/tasks/${task.id}`, { dayOffset: daysDiff }, { defaultErrorMessage: 'Failed to move task' })
+      await loadTasks()
+      toast.success('Task moved')
+      setDragPreview({})
+    } catch (error: unknown) {
       console.error('Error moving task:', error)
-      toast.error('Failed to move task')
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to move task')
     }
   }
 
@@ -456,24 +416,13 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     const newDateStr = getLocalDateString(newDate)
     
     try {
-      const response = await fetch(`/api/gantt/tasks/${task.id}/resize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ edge: drag.edge, newDate: newDateStr })
-      })
-      
-      if (response.ok) {
-        await loadTasks()
-        toast.success('Task resized')
-        setDragPreview({})
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to resize task')
-      }
-    } catch (error) {
+      await apiPatch(`/api/gantt/tasks/${task.id}`, { edge: drag.edge, newDate: newDateStr }, { defaultErrorMessage: 'Failed to resize task' })
+      await loadTasks()
+      toast.success('Task resized')
+      setDragPreview({})
+    } catch (error: unknown) {
       console.error('Error resizing task:', error)
-      toast.error('Failed to resize task')
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to resize task')
     }
   }
 
@@ -498,35 +447,24 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     newEndDate.setDate(newEndDate.getDate() + daysDiff)
     
     try {
-      const response = await fetch('/api/gantt/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: `${task.title} (Copy)`,
-          description: task.description,
-          start_date: getLocalDateString(newStartDate),
-          end_date: getLocalDateString(newEndDate),
-          project_id: task.project_id,
-          board_id: task.board_id,
-          assignee_id: task.assignee_id,
-          color: task.color,
-          percent_complete: 0
-        })
-      })
-      
-      if (response.ok) {
-        await loadTasks()
-        toast.success('Task duplicated')
-        setDragPreview({})
-        onTaskCreated?.()
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || 'Failed to duplicate task')
-      }
-    } catch (error) {
+      await apiPost('/api/gantt/tasks', {
+        title: `${task.title} (Copy)`,
+        description: task.description,
+        start_date: getLocalDateString(newStartDate),
+        end_date: getLocalDateString(newEndDate),
+        project_id: task.project_id,
+        board_id: task.board_id,
+        assignee_id: task.assignee_id,
+        color: task.color,
+        percent_complete: 0
+      }, { defaultErrorMessage: 'Failed to duplicate task' })
+      await loadTasks()
+      toast.success('Task duplicated')
+      setDragPreview({})
+      onTaskCreated?.()
+    } catch (error: unknown) {
       console.error('Error duplicating task:', error)
-      toast.error('Failed to duplicate task')
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to duplicate task')
     }
   }
 
@@ -637,23 +575,12 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
                       onBlur={async () => {
                         if (editingTitleValue.trim() && editingTitleValue !== task.title) {
                           try {
-                            const response = await fetch(`/api/gantt/tasks/${task.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              credentials: 'include',
-                              body: JSON.stringify({ title: editingTitleValue.trim() })
-                            })
-                            
-                            if (!response.ok) {
-                              const errorData = await response.json()
-                              throw new Error(errorData.message || 'Failed to update task')
-                            }
-                            
+                            await apiPut(`/api/gantt/tasks/${task.id}`, { title: editingTitleValue.trim() }, { defaultErrorMessage: 'Failed to update task' })
                             await loadTasks()
                             toast.success('Task title updated')
-                          } catch (error: any) {
+                          } catch (error: unknown) {
                             console.error('Error updating task title:', error)
-                            toast.error(error.message || 'Failed to update task title')
+                            toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to update task title')
                             setEditingTitleValue(task.title)
                           }
                         } else {
@@ -752,52 +679,19 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
           users={users}
           onSave={async (taskData) => {
             if (editingTask) {
-              // Update existing task
-              const response = await fetch(`/api/gantt/tasks/${editingTask.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(taskData)
-              })
-              
-              if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.message || 'Failed to update task')
-              }
-              
+              await apiPut(`/api/gantt/tasks/${editingTask.id}`, taskData, { defaultErrorMessage: 'Failed to update task' })
               await loadTasks()
               toast.success('Task updated')
             } else {
-              // Create new task
-              const response = await fetch('/api/gantt/tasks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(taskData)
-              })
-              
-              if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.message || 'Failed to create task')
-              }
-              
+              await apiPost('/api/gantt/tasks', taskData, { defaultErrorMessage: 'Failed to create task' })
               await loadTasks()
-              advanceColorCycle() // Advance color for next task
+              advanceColorCycle()
               toast.success('Task created')
               onTaskCreated?.()
             }
           }}
           onDelete={editingTask ? async (taskId) => {
-            const response = await fetch(`/api/gantt/tasks/${taskId}`, {
-              method: 'DELETE',
-              credentials: 'include'
-            })
-            
-            if (!response.ok) {
-              const errorData = await response.json()
-              throw new Error(errorData.message || 'Failed to delete task')
-            }
-            
+            await apiDelete(`/api/gantt/tasks/${taskId}`, { defaultErrorMessage: 'Failed to delete task' })
             await loadTasks()
             toast.success('Task deleted')
           } : undefined}

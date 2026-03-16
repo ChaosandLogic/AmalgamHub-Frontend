@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, AlertTriangle, Info, MessageCircle, X } from 'lucide-react'
 import styles from './Toast.module.css'
+import { TOAST_DURATION_MS } from '../lib/constants/ui'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning' | 'notification'
 
@@ -46,7 +47,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substr(2, 9)
     setToasts(prev => [...prev, { id, message, type }])
-    setTimeout(() => removeToast(id), 5000)
+    setTimeout(() => removeToast(id), TOAST_DURATION_MS)
   }, [removeToast])
 
   const showNotificationToast = useCallback((title: string, options?: { message?: string; link?: string }) => {
@@ -58,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       title,
       link: options?.link
     }])
-    setTimeout(() => removeToast(id), 6000)
+    setTimeout(() => removeToast(id), TOAST_DURATION_MS + 1000)
   }, [removeToast])
 
   const success = useCallback((message: string) => showToast(message, 'success'), [showToast])

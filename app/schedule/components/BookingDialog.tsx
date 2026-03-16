@@ -784,8 +784,6 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
                   } else if (repeatEnabled) {
                     // Create multiple bookings for repeat
                     const repeatDates = calculateRepeatDates()
-                    console.log('Creating repeat bookings:', repeatDates.length, repeatDates)
-                    
                     if (repeatDates.length === 0) {
                       toast.error('No repeat dates calculated. Please check your dates and repeat settings.')
                       return

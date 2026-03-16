@@ -1,6 +1,6 @@
 'use client'
 
-import { DAYS } from '../constants'
+import { DAYS } from '../lib/constants'
 
 interface WeeklySummaryProps {
   summary: {

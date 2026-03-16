@@ -2,20 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getLocalDateString } from '../../lib/utils/dateUtils'
-import { base64ToSlots } from '../slotBitmap'
+import { apiGet } from '../../lib/api/client'
+import { base64ToSlots } from '../lib/slotBitmap'
 import {
   FULL_DAY_SLOTS,
   LEGACY_OFFSET,
   LEGACY_SLOTS,
   type EntryType,
-} from '../constants'
-import type { RowData } from '../types'
+} from '../lib/constants'
+import type { RowData } from '../lib/types'
 import {
   hydrateSlotsFromSavedRow,
   hydrateSlotEntryTypesFromSavedRow,
   serializeTimesheet,
   todayIndexForWeek,
-} from '../timesheetUtils'
+} from '../lib/timesheetUtils'
 
 export interface UseTimesheetDataParams {
   weekStart: Date
@@ -159,19 +160,13 @@ export function useTimesheetData({
       return
     }
     try {
-      const r = await fetch('/api/autosaved', { credentials: 'include' })
-      if (r.ok) {
-        const response = await r.json()
-        const timesheet = response.data?.timesheet || response.timesheet
-        if (timesheet) {
-          const autosavedWeek = getLocalDateString(
-            new Date(timesheet.weekStartDate)
-          )
-          const currentWeek = getLocalDateString(weekStart)
-          if (autosavedWeek === currentWeek) {
-            hydrateFromSavedInComponent(timesheet)
-            return
-          }
+      const data = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
+      if (data.timesheet) {
+        const autosavedWeek = getLocalDateString(new Date(data.timesheet.weekStartDate))
+        const currentWeek = getLocalDateString(weekStart)
+        if (autosavedWeek === currentWeek) {
+          hydrateFromSavedInComponent(data.timesheet)
+          return
         }
       }
     } catch (error) {
@@ -344,11 +339,9 @@ export function useTimesheetData({
     let cancelled = false
     ;(async () => {
       try {
-        const r = await fetch('/api/autosaved', { credentials: 'include' })
-        if (r.ok) {
-          const response = await r.json()
-          const timesheet = response.data?.timesheet || response.timesheet
-          if (timesheet && !cancelled) hydrateFromSavedInComponent(timesheet)
+        const data = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
+        if (data.timesheet && !cancelled) {
+          hydrateFromSavedInComponent(data.timesheet)
           return
         }
       } catch {}
@@ -364,6 +357,7 @@ export function useTimesheetData({
     return () => {
       cancelled = true
     }
+    // hydrateFromSavedInComponent is stable (defined with useCallback) — intentionally omitted
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId])
 

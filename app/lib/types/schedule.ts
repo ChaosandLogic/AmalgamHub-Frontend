@@ -41,5 +41,7 @@ export interface ResourceScheduleProps {
   monthStart: Date
   resources: Resource[]
   projects: Project[]
+  /** If provided, used for role checks; otherwise component fetches current user itself. */
+  currentUser?: { role: string } | null
 }
 

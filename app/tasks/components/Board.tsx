@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useToast } from '../../components/Toast'
+import { useUser } from '../../lib/hooks/useUser'
 import { Plus } from 'lucide-react'
+import { apiGet, apiPatch, apiPost, apiPut } from '../../lib/api/client'
 import {
   DndContext,
   DragOverlay,
@@ -13,7 +15,8 @@ import {
   useSensors,
   DragStartEvent,
   DragEndEvent,
-  DragOverEvent
+  DragOverEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -76,13 +79,13 @@ interface BoardProps {
 
 export default function Board({ boardId, boardName }: BoardProps) {
   const toast = useToast()
+  const { user } = useUser()
   const [lists, setLists] = useState<TaskList[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddList, setShowAddList] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [activeCard, setActiveCard] = useState<TaskCard | null>(null)
   const [activeList, setActiveList] = useState<TaskList | null>(null)
-  const [user, setUser] = useState<{ role: string } | null>(null)
   // Track the final drag position to avoid race conditions
   const lastDragOverRef = useRef<{ activeId: string; overId: string } | null>(null)
   // Store the original lists state at drag start to calculate correct positions
@@ -102,53 +105,21 @@ export default function Board({ boardId, boardName }: BoardProps) {
   // Create a stable empty array reference to avoid dependency array size changes
   const emptySensors = useMemo(() => [], [])
 
-  useEffect(() => {
-    loadBoard()
-    loadUser()
-  }, [boardId])
-
-  async function loadUser() {
+  const loadBoard = useCallback(async () => {
     try {
-      const res = await fetch('/api/user', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setUser(response.data?.user || response.user)
-      }
-    } catch (error) {
-      console.error('Error loading user:', error)
-    }
-  }
-
-  async function loadBoard() {
-    try {
-      const res = await fetch(`/api/tasks/boards/${boardId}`, { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const loadedLists: TaskList[] = response.data?.board?.lists || []
-        
-        // Log positions to diagnose the issue
-        loadedLists.forEach((list: TaskList) => {
-          console.log(`[LoadBoard] List ${list.name}:`, 
-            list.cards?.map((c, idx) => ({ 
-              title: c.title, 
-              position: c.position, 
-              arrayIndex: idx,
-              match: c.position === idx 
-            }))
-          )
-        })
-        
-        setLists(loadedLists)
-      } else {
-        throw new Error('Failed to load board')
-      }
+      const data = await apiGet<{ board: { lists: TaskList[] } }>(`/api/tasks/boards/${boardId}`, { defaultErrorMessage: 'Failed to load board' })
+      setLists(data.board?.lists || [])
     } catch (error) {
       console.error('Error loading board:', error)
       toast.error('Failed to load board')
     } finally {
       setLoading(false)
     }
-  }
+  }, [boardId, toast])
+
+  useEffect(() => {
+    loadBoard()
+  }, [loadBoard])
 
   async function createList() {
     if (!newListName.trim()) {
@@ -158,35 +129,17 @@ export default function Board({ boardId, boardName }: BoardProps) {
 
     try {
       const maxPosition = lists.length > 0 ? Math.max(...lists.map(l => l.position)) : -1
-      const res = await fetch('/api/tasks/lists', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          board_id: boardId,
-          name: newListName,
-          position: maxPosition + 1
-        })
-      })
-
-      if (res.ok) {
-        const response = await res.json()
-        const newList = { ...response.data?.list, cards: [] }
-        if (newList.id) {
-          // Add to state immediately, sorted by position to ensure correct order
-          setLists(prev => {
-            const updated = [...prev, newList]
-            return updated.sort((a, b) => a.position - b.position)
-          })
-          setNewListName('')
-          setShowAddList(false)
-          toast.success('List created')
-        } else {
-          throw new Error('Invalid response format')
-        }
-      } else {
-        throw new Error('Failed to create list')
-      }
+      const data = await apiPost<{ list: TaskList }>('/api/tasks/lists', {
+        board_id: boardId,
+        name: newListName,
+        position: maxPosition + 1
+      }, { defaultErrorMessage: 'Failed to create list' })
+      const newList = { ...data.list, cards: [] }
+      if (!newList.id) throw new Error('Invalid response format')
+      setLists(prev => [...prev, newList].sort((a, b) => a.position - b.position))
+      setNewListName('')
+      setShowAddList(false)
+      toast.success('List created')
     } catch (error) {
       console.error('Error creating list:', error)
       toast.error('Failed to create list')
@@ -275,17 +228,6 @@ export default function Board({ boardId, boardName }: BoardProps) {
         listId: overList.id
       }
     }
-    
-    console.log('[DragOver]', {
-      activeCardTitle: activeCard.title,
-      overId,
-      overListFound: !!overList,
-      overListName: overList?.name,
-      overCardFound: !!overCard,
-      overCardTitle: overCard?.title,
-      isOverListContainer: !overCard && !!overList,
-      lastValidOverCard: lastValidOverCardRef.current
-    })
     
     if (!overList) return
 
@@ -384,17 +326,7 @@ export default function Board({ boardId, boardName }: BoardProps) {
           position: index
         }))
         
-        const res = await fetch('/api/tasks/lists/reorder', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ lists: listsToUpdate })
-        })
-        
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({ message: 'Failed to reorder lists' }))
-          throw new Error(errorData.message || 'Failed to reorder lists')
-        }
+        await apiPatch('/api/tasks/lists/reorder', { lists: listsToUpdate }, { defaultErrorMessage: 'Failed to reorder lists' })
         
         setActiveList(null)
       } catch (error) {
@@ -419,12 +351,6 @@ export default function Board({ boardId, boardName }: BoardProps) {
       return
     }
     
-    console.log('[DragEnd] Active card found:', {
-      cardId: activeId,
-      cardTitle: activeCard.title,
-      cardPosition: activeCard.position
-    })
-
     let overList = lists.find(l => l.id === overId) || 
                    lists.find(l => l.cards?.some(c => c.id === overId))
     
@@ -437,11 +363,6 @@ export default function Board({ boardId, boardName }: BoardProps) {
       return
     }
     
-    console.log('[DragEnd] Over list found:', {
-      overListId: overList.id,
-      overListName: overList.name
-    })
-
     let overCard = overList.cards?.find(c => c.id === overId)
     
     // IMPORTANT: Get activeList from ORIGINAL state, not current state
@@ -458,16 +379,9 @@ export default function Board({ boardId, boardName }: BoardProps) {
       return
     }
     
-    console.log('[DragEnd] Active list found (from original state):', {
-      activeListId: activeList.id,
-      activeListName: activeList.name,
-      cardCountInOriginalList: activeList.cards?.length
-    })
-
     // If we dropped on the same card we're dragging, use the last valid overCard we tracked
     if (!overCard || overCard.id === activeId) {
       if (lastValidOverCardRef.current) {
-        console.log('[DragEnd] Using last valid overCard from ref:', lastValidOverCardRef.current)
         const lastOverList = lists.find(l => l.id === lastValidOverCardRef.current!.listId)
         overCard = lastOverList?.cards?.find(c => c.id === lastValidOverCardRef.current!.cardId)
         // Update overId to match the restored card
@@ -490,15 +404,6 @@ export default function Board({ boardId, boardName }: BoardProps) {
     const originalTargetList = originalLists.find(l => l.id === targetListId)
     const originalSourceList = activeList // We already found this above
     
-    console.log('[DragEnd] Original lists check:', {
-      originalTargetListFound: !!originalTargetList,
-      originalSourceListFound: !!originalSourceList,
-      activeCardId: activeId,
-      targetListId,
-      originalListsCount: originalLists.length,
-      originalListNames: originalLists.map(l => l.name)
-    })
-    
     if (!originalTargetList || !originalSourceList) {
       console.error('[DragEnd] Original target or source list not found!', {
         originalTargetList: !!originalTargetList,
@@ -514,28 +419,11 @@ export default function Board({ boardId, boardName }: BoardProps) {
     const originalTargetCards = originalTargetList.cards || []
     const isSameList = originalTargetList.id === originalSourceList.id
     
-    console.log('[DragEnd] Context:', {
-      overId,
-      overCardFound: !!overCard,
-      overCardTitle: overCard?.title,
-      isSameList,
-      usedLastValidRef: !!(overCard && lastValidOverCardRef.current && overCard.id === lastValidOverCardRef.current.cardId),
-      originalTargetCards: originalTargetCards.map(c => ({ id: c.id, title: c.title, position: c.position }))
-    })
-    
     let newPosition = 0
     
     if (overCard && activeCard.id !== overCard.id) {
       // Dropped on a specific card - use that card's position in the ORIGINAL list
       const overCardPosition = originalTargetCards.findIndex(c => c.id === overId)
-      
-      console.log('[DragEnd] Dropped on card:', {
-        overCardId: overId,
-        overCardTitle: overCard.title,
-        overCardOriginalPosition: overCardPosition,
-        isPositionZero: overCardPosition === 0,
-        activeCardOriginalPosition: originalTargetCards.findIndex(c => c.id === activeId)
-      })
       
       if (isSameList) {
         // Moving within same list
@@ -544,14 +432,6 @@ export default function Board({ boardId, boardName }: BoardProps) {
         // We need to find where the card actually ended up after arrayMove
         const currentList = lists.find(l => l.id === targetListId)
         const visualPosition = currentList?.cards?.findIndex(c => c.id === activeId)
-        
-        console.log('[DragEnd] Same-list reorder:', {
-          originalOldIndex: originalTargetCards.findIndex(c => c.id === activeId),
-          originalNewIndex: overCardPosition,
-          visualPositionAfterArrayMove: visualPosition,
-          currentListLength: currentList?.cards?.length,
-          currentVisualOrder: currentList?.cards?.map(c => c.title)
-        })
         
         if (visualPosition !== undefined && visualPosition !== -1) {
           // Use the actual position from the visual state after arrayMove
@@ -566,11 +446,8 @@ export default function Board({ boardId, boardName }: BoardProps) {
       }
     } else {
       // Dropped on list container (not a specific card) OR dropped on same card (shouldn't happen)
-      console.log('[DragEnd] Dropped on list container or same card, using fallback logic')
-      
       if (isSameList) {
         // Moving within same list to the end - this shouldn't happen for reordering
-        console.warn('[DragEnd] Same-list drag ended without overCard - this is unexpected')
         newPosition = originalTargetCards.length - 1
       } else {
         // Moving to different list - add at end
@@ -578,79 +455,19 @@ export default function Board({ boardId, boardName }: BoardProps) {
       }
     }
     
-    console.log('[DragEnd] Calculated final position:', {
-      cardId: activeId,
-      cardTitle: activeCard.title,
-      fromList: originalSourceList.name,
-      fromListId: activeList.id,
-      toList: originalTargetList.name,
-      toListId: targetListId,
-      originalPosition: originalTargetCards.findIndex(c => c.id === activeId),
-      newPosition: newPosition,
-      isSameList: isSameList,
-      overCard: overCard ? { id: overCard.id, title: overCard.title } : null,
-      originalTargetCardCount: originalTargetCards.length,
-      originalTargetCardTitles: originalTargetCards.map(c => c.title),
-      currentVisualState: lists.find(l => l.id === targetListId)?.cards?.map(c => ({ title: c.title, id: c.id }))
-    })
-
     // Always update if moving to different list or position changed
     const shouldMove = activeList.id !== targetListId || activeCard.position !== newPosition
-    console.log('[DragEnd] Should move?', {
-      shouldMove,
-      activeListId: activeList.id,
-      targetListId,
-      isDifferentList: activeList.id !== targetListId,
-      activeCardPosition: activeCard.position,
-      newPosition,
-      isPositionChanged: activeCard.position !== newPosition
-    })
-    
     if (shouldMove) {
       // Update state optimistically - keep the card in its new position
       // The state is already updated by handleDragOver, so we just need to persist it
       
       try {
-        // Log the move operation for debugging
-        console.log('[DragEnd] Sending move API request:', {
-          cardId: activeId,
-          cardTitle: activeCard.title,
+        await apiPatch(`/api/tasks/cards/${activeId}/move`, {
           list_id: targetListId,
           position: newPosition
-        })
-        
-        const res = await fetch(`/api/tasks/cards/${activeId}/move`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            list_id: targetListId,
-            position: newPosition
-          })
-        })
-        
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({ message: 'Failed to move card' }))
-          const errorMessage = errorData.message || `Failed to move card (${res.status})`
-          console.error('Move API error:', errorMessage, errorData)
-          throw new Error(errorMessage)
-        }
-        
-        const responseData = await res.json().catch(() => ({}))
-        console.log('[DragEnd] Move successful, API response:', {
-          success: responseData.success,
-          cardReturned: responseData.data?.card,
-          cardPosition: responseData.data?.card?.position,
-          cardListId: responseData.data?.card?.list_id
-        })
-        
-        // Reload board from server to ensure all positions are correct
-        // This ensures consistency after the move, especially for positions in both lists
-        console.log('[DragEnd] Reloading board...')
+        }, { defaultErrorMessage: 'Failed to move card' })
+
         await loadBoard()
-        console.log('[DragEnd] Board reloaded')
-        
-        // Clear activeCard after reload
         setActiveCard(null)
         setActiveList(null)
       } catch (error) {
@@ -665,7 +482,6 @@ export default function Board({ boardId, boardName }: BoardProps) {
       }
     } else {
       // No change needed
-      console.log('[DragEnd] No move needed - same list and same position')
       setActiveCard(null)
       setActiveList(null)
       lastValidOverCardRef.current = null
@@ -702,7 +518,7 @@ export default function Board({ boardId, boardName }: BoardProps) {
   }, [sensors])
 
   // Memoize collision detection to prevent infinite render loops
-  const collisionDetectionStrategy = useCallback((args: any) => {
+  const collisionDetectionStrategy = useCallback<CollisionDetection>((args) => {
     // Use pointerWithin first to get all droppables under the pointer
     const pointerCollisions = pointerWithin(args)
     

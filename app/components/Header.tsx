@@ -1,46 +1,26 @@
 'use client'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { GanttChart } from 'lucide-react'
 import Notifications from './Notifications'
+import { useUser } from '../lib/hooks/useUser'
+import { apiPost } from '../lib/api/client'
 import styles from './Header.module.css'
 
 export default function Header() {
-  const [user, setUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, loading } = useUser()
   const router = useRouter()
   const pathname = usePathname()
 
-  useEffect(() => {
-    // Load user data
-    const loadUser = async () => {
-      try {
-        const res = await fetch('/api/user', { credentials: 'include' })
-        if (res.ok) {
-          const response = await res.json()
-          setUser(response.data?.user || response.user)
-        }
-      } catch {
-        setUser(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadUser()
-  }, [])
-
   async function handleLogout() {
     try {
-      await fetch('/api/logout', { method: 'POST', credentials: 'include' })
+      await apiPost('/api/logout')
     } catch {}
-    // Clear user-specific localStorage
     if (user?.id) {
       try {
         localStorage.removeItem(`timesheet_autosave_${user.id}`)
       } catch {}
     }
-    setUser(null)
     router.push('/login')
   }
 
@@ -130,15 +110,19 @@ export default function Header() {
             >
               Chat
             </Link>
-            <a 
-              href="http://192.168.1.249:8080/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className={styles.navLink}
-            >
-              Wiki
-            </a>
-            <span className={styles.navDivider} aria-hidden />
+            {process.env.NEXT_PUBLIC_WIKI_URL && (
+              <>
+              <a 
+                href={process.env.NEXT_PUBLIC_WIKI_URL} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className={styles.navLink}
+              >
+                Wiki
+              </a>
+              <span className={styles.navDivider} aria-hidden />
+              </>
+            )}
             <Link 
               href="/settings" 
               className={`${styles.navLink} ${isActive('/settings') ? styles.navLinkActive : ''}`}
@@ -168,6 +152,7 @@ export default function Header() {
         <button 
           onClick={handleLogout} 
           className={styles.logoutButton}
+          aria-label="Log out"
         >
           Logout
         </button>

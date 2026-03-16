@@ -2,34 +2,31 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '../components/Header'
-import Timeline from './Timeline'
+import Timeline from './components/Timeline'
+import { useUser } from '../lib/hooks/useUser'
+import { apiGet } from '../lib/api/client'
 
 export default function TimesheetPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const { user, loading } = useUser()
   const [timesheetsEnabled, setTimesheetsEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
-    (async () => {
-      const r = await fetch('/api/user', { credentials: 'include' })
-      if (r.status === 401) { router.replace('/login'); return }
-      const response = await r.json()
-      setUser(response.data?.user || response.user)
-      
-      // Check if timesheets are enabled
-      try {
-        const settingsRes = await fetch('/api/global-settings', { credentials: 'include' })
-        if (settingsRes.ok) {
-          const settingsResponse = await settingsRes.json()
-          const settings = settingsResponse.data?.settings || settingsResponse.settings
-          setTimesheetsEnabled(settings?.timesheets_enabled !== false)
-        }
-      } catch (error) {
-        console.error('Error checking timesheets status:', error)
-        setTimesheetsEnabled(true) // Default to enabled on error
-      }
-    })()
-  }, [router])
+    if (!loading && !user) router.replace('/login')
+  }, [loading, user, router])
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    apiGet<{ settings: { timesheets_enabled?: boolean } }>('/api/global-settings')
+      .then((data) => {
+        if (!cancelled) setTimesheetsEnabled(data.settings?.timesheets_enabled !== false)
+      })
+      .catch(() => { if (!cancelled) setTimesheetsEnabled(true) })
+    return () => { cancelled = true }
+  }, [user])
+
+  if (loading) return null
 
   // Show message if timesheets are disabled (all users including admins)
   if (timesheetsEnabled === false) {

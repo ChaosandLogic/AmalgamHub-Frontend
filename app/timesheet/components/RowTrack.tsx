@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import { getSegments, slotLabelFullDay } from '../timesheetUtils'
-import { ENTRY_TYPE_COLORS, SLOT_WIDTH_PX, type EntryType } from '../constants'
-import type { RowData } from '../types'
+import { getSegments, slotLabelFullDay } from '../lib/timesheetUtils'
+import { ENTRY_TYPE_COLORS, SLOT_WIDTH_PX, type EntryType } from '../lib/constants'
+import type { RowData } from '../lib/types'
 
 export interface RowTrackProps {
   row: RowData

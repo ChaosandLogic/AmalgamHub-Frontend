@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef } from 'react'
-import { SLOT_WIDTH_PX } from '../constants'
+import { SLOT_WIDTH_PX } from '../lib/constants'
 
 export interface TimelineHeaderStripProps {
   totalSlots: number

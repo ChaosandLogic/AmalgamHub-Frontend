@@ -1,6 +1,6 @@
 'use client'
 
-import { ENTRY_TYPE_COLORS, type EntryType } from '../constants'
+import { ENTRY_TYPE_COLORS, type EntryType } from '../lib/constants'
 
 export interface EntryTypeSegment {
   dayIndex: number

@@ -5,45 +5,38 @@ import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { startOfWeek, getLocalDateString } from '../lib/utils/dateUtils'
+import { apiGet, apiPost, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
+import type { CurrentUser } from '../lib/types/user'
+import type { Timesheet } from '../lib/types/timesheet'
 
 export default function AdminPage() {
   const toast = useToast()
-  const [users, setUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<CurrentUser[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [viewUser, setViewUser] = useState<any>(null)
+  const [viewUser, setViewUser] = useState<CurrentUser | null>(null)
   const [selectedWeek, setSelectedWeek] = useState(() => startOfWeek(new Date()))
   const [submittedUsers, setSubmittedUsers] = useState<Set<string>>(new Set())
   const [testingNotifications, setTestingNotifications] = useState(false)
   const [notificationResult, setNotificationResult] = useState<string | null>(null)
-  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<any>(null)
+  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<CurrentUser | null>(null)
 
   async function loadUsers() {
     setLoading(true)
     try {
-      const r = await fetch('/api/users', { credentials: 'include' })
-      if (!r.ok) throw new Error('Failed to load users')
-      const response = await r.json()
-      const users = response.data?.users || response.users || []
-      setUsers(users)
-    } catch (e: any) { setError(e.message) } finally { setLoading(false) }
+      const data = await apiGet<{ users: CurrentUser[] }>('/api/users', { defaultErrorMessage: 'Failed to load users' })
+      setUsers(data.users || [])
+    } catch (e: unknown) { setError((e instanceof Error ? e.message : String(e))) } finally { setLoading(false) }
   }
 
   async function loadSubmissionStatus() {
     try {
       const weekKey = getLocalDateString(selectedWeek)
-      const r = await fetch('/api/all-timesheets', { credentials: 'include' })
-      if (!r.ok) return
-      const response = await r.json()
-      const data = response.data || response
-      const timesheets = data.timesheets || []
-      
+      const data = await apiGet<{ timesheets: Timesheet[] }>('/api/timesheets/all')
       const submitted = new Set<string>()
-      timesheets.forEach((ts: any) => {
+      ;(data.timesheets || []).forEach((ts) => {
         const tsWeekKey = getLocalDateString(new Date(ts.week_start_date || ts.weekStartDate))
-        if (tsWeekKey === weekKey) {
-          submitted.add(ts.user_id || ts.userId)
-        }
+        if (tsWeekKey === weekKey) submitted.add(ts.user_id || ts.userId)
       })
       setSubmittedUsers(submitted)
     } catch (e) {
@@ -57,45 +50,33 @@ export default function AdminPage() {
   async function downloadWeeklyTimesheets() {
     try {
       const weekKey = getLocalDateString(selectedWeek)
-      const r = await fetch(`/api/export-week?week=${encodeURIComponent(weekKey)}`, { credentials: 'include' })
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({ message: r.status === 404 ? 'No timesheets submitted for this week.' : 'Failed to export' }))
-        throw new Error(err.message || 'Failed to export')
-      }
-      const blob = await r.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `timesheets_week_${weekKey}.xlsx`
-      link.style.visibility = 'hidden'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to download timesheets')
+      await apiDownload(
+        `/api/timesheets/export-week?week=${encodeURIComponent(weekKey)}`,
+        `timesheets_week_${weekKey}.xlsx`
+      )
+    } catch (e: unknown) {
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to download timesheets')
     }
   }
 
   async function updateRole(userId: string, role: string) {
     try {
-      await fetch('/api/update-user-role', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, role }), credentials: 'include' })
+      await apiPatch(`/api/users/${userId}/role`, { role })
       setUsers(prev => prev.map(u => (u.id === userId ? { ...u, role } : u)))
     } catch {}
   }
 
-  async function deleteUser(user: any) {
+  async function deleteUser(user: CurrentUser) {
     setShowDeleteUserConfirm(user)
   }
 
-  const confirmDeleteUser = async (user: any) => {
+  const confirmDeleteUser = async (user: CurrentUser) => {
     try {
-      const r = await fetch(`/api/users/${user.id}`, { method: 'DELETE', credentials: 'include' })
-      if (!r.ok) throw new Error('Failed to delete')
+      await apiDelete(`/api/users/${user.id}`, { defaultErrorMessage: 'Failed to delete' })
       setUsers(prev => prev.filter(u => u.id !== user.id))
       toast.success('User deleted successfully')
-    } catch (e: any) { 
-      toast.error(e.message) 
+    } catch (e: unknown) { 
+      toast.error((e instanceof Error ? e.message : String(e))) 
     }
     setShowDeleteUserConfirm(null)
   }
@@ -104,20 +85,10 @@ export default function AdminPage() {
     setTestingNotifications(true)
     setNotificationResult(null)
     try {
-      const r = await fetch('/api/admin/test-daily-notifications', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include' 
-      })
-      const response = await r.json()
-      const data = response.data || response
-      if (r.ok) {
-        setNotificationResult(`✅ Success! ${data.message || 'Notifications sent successfully.'}`)
-      } else {
-        setNotificationResult(`❌ Error: ${data.message || 'Failed to send notifications'}`)
-      }
-    } catch (e: any) {
-      setNotificationResult(`❌ Error: ${e.message}`)
+      const data = await apiPost<{ message?: string }>('/api/admin/test-daily-notifications')
+      setNotificationResult(`✅ Success! ${data.message || 'Notifications sent successfully.'}`)
+    } catch (e: unknown) {
+      setNotificationResult(`❌ Error: ${(e instanceof Error ? e.message : String(e))}`)
     } finally {
       setTestingNotifications(false)
       // Clear result after 5 seconds
@@ -227,7 +198,12 @@ export default function AdminPage() {
               {notificationResult}
             </div>
           )}
-          {loading && <div>Loading…</div>}
+          {loading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+              <LoadingSpinner size={28} />
+              <span>Loading…</span>
+            </div>
+          )}
           {error && <div style={{ color: 'crimson' }}>{error}</div>}
           {!loading && !error && (
             <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -333,10 +309,10 @@ export default function AdminPage() {
   )
 }
 
-function UserModal({ user, onClose }: any) {
+function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }) {
   const toast = useToast()
-  const [autosaved, setAutosaved] = useState<any>(null)
-  const [submitted, setSubmitted] = useState<any[]>([])
+  const [autosaved, setAutosaved] = useState<Timesheet | null>(null)
+  const [submitted, setSubmitted] = useState<Timesheet[]>([])
   const [error, setError] = useState('')
   const [selectedTimesheets, setSelectedTimesheets] = useState<Set<string>>(new Set())
   const [showDeleteTimesheetsConfirm, setShowDeleteTimesheetsConfirm] = useState(false)
@@ -345,13 +321,14 @@ function UserModal({ user, onClose }: any) {
     let cancelled = false
     ;(async () => {
       try {
-        const a = await fetch(`/api/autosaved/${user.id}`, { credentials: 'include' })
-        if (a.ok) { const response = await a.json(); const timesheet = response.data?.timesheet || response.timesheet; if (!cancelled) setAutosaved(timesheet) }
+        const tsData = await apiGet<{ timesheet: Timesheet }>(`/api/timesheets/draft/${user.id}`)
+        if (!cancelled) setAutosaved(tsData.timesheet)
       } catch {}
       try {
-        const r = await fetch('/api/all-timesheets', { credentials: 'include' })
-        if (r.ok) { const response = await r.json(); const data = response.data || response; const list = (data.timesheets || []).filter((ts: any) => ts.user_id === user.id); if (!cancelled) setSubmitted(list) }
-      } catch (e: any) { if (!cancelled) setError('Failed to load timesheets') }
+        const allData = await apiGet<{ timesheets: Timesheet[] }>('/api/timesheets/all')
+        const list = allData.timesheets.filter((ts) => ts.user_id === user.id)
+        if (!cancelled) setSubmitted(list)
+      } catch { if (!cancelled) setError('Failed to load timesheets') }
     })()
     return () => { cancelled = true }
   }, [user.id])
@@ -390,29 +367,16 @@ function UserModal({ user, onClose }: any) {
   const confirmDeleteTimesheets = async () => {
     const timesheetIds = Array.from(selectedTimesheets)
     try {
-      const deletePromises = timesheetIds.map(timesheetId =>
-        fetch(`/api/timesheet/${timesheetId}`, {
-          method: 'DELETE',
-          credentials: 'include'
-        })
+      const results = await Promise.allSettled(
+        timesheetIds.map(id => apiDelete(`/api/timesheets/${id}`))
       )
-      
-      const results = await Promise.all(deletePromises)
-      const failedDeletes: string[] = []
-      
-      results.forEach((response, index) => {
-        if (!response.ok) {
-          failedDeletes.push(timesheetIds[index])
-        }
-      })
-      
-      if (failedDeletes.length === 0) {
-        // All deletions successful
+      const failedCount = results.filter(r => r.status === 'rejected').length
+      if (failedCount === 0) {
         setSubmitted(prev => prev.filter(ts => !selectedTimesheets.has(ts.id)))
         setSelectedTimesheets(new Set())
         toast.success(`Successfully deleted ${timesheetIds.length} timesheet(s).`)
       } else {
-        toast.error(`Failed to delete ${failedDeletes.length} timesheet(s). Please try again.`)
+        toast.error(`Failed to delete ${failedCount} timesheet(s). Please try again.`)
       }
     } catch (error) {
       console.error('Error deleting timesheets:', error)

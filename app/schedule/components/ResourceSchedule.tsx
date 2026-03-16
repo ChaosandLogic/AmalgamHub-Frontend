@@ -1,25 +1,26 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useToast } from '../components/Toast'
-import { clamp, getDateForDay, getLocalDateString, parseLocalDateString, normalizeToMidnight, getDayIndex } from '../lib/utils/dateUtils'
-import { handleApiError } from '../lib/utils/apiUtils'
-import { getResourceIcon, getResourceDefaultColor } from '../lib/utils/resourceUtils'
+import { useToast } from '../../components/Toast'
+import { clamp, getDateForDay, getLocalDateString, parseLocalDateString, normalizeToMidnight, getDayIndex } from '../../lib/utils/dateUtils'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../lib/api/client'
+import { getResourceIcon, getResourceDefaultColor } from '../../lib/utils/resourceUtils'
 import { 
   DAY_COLUMN_WIDTH, 
   ROW_HEIGHT, 
   MONTHS_TO_DISPLAY
-} from '../lib/constants/schedule'
-import type { ResourceScheduleProps } from '../lib/types/schedule'
-import { calculateBookingLanes } from './utils/calculateBookingLanes'
-import TimelineHeader from './components/TimelineHeader'
-import ResourceRow from './components/ResourceRow'
-import BookingDialog from './components/BookingDialog'
+} from '../../lib/constants/schedule'
+import type { ResourceScheduleProps } from '../../lib/types/schedule'
+import { calculateBookingLanes } from '../utils/calculateBookingLanes'
+import TimelineHeader from './TimelineHeader'
+import ResourceRow from './ResourceRow'
+import BookingDialog from './BookingDialog'
 
-export default function ResourceSchedule({ monthStart, resources, projects }: ResourceScheduleProps) {
+export default function ResourceSchedule({ monthStart, resources, projects, currentUser: currentUserProp }: ResourceScheduleProps) {
   const toast = useToast()
   const leftColumnRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
-  const [user, setUser] = useState<{ role: string } | null>(null)
+  const [userLocal, setUserLocal] = useState<{ role: string } | null>(null)
+  const user = currentUserProp !== undefined ? currentUserProp : userLocal
   
   // Calculate total days for 6 months ahead
   const totalDays = useMemo(() => {
@@ -137,11 +138,11 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
     syncPublicHolidays()
   }, [monthStart, totalDays])
 
-  // Load current user and users for project manager dropdown
+  // Load current user (if not passed as prop) and users for project manager dropdown
   useEffect(() => {
-    loadCurrentUser()
+    if (currentUserProp === undefined) loadCurrentUser()
     loadUsers()
-  }, [])
+  }, [currentUserProp])
 
   // Scroll timeline to today's date on initial load - position today as the first visible day
   useEffect(() => {
@@ -167,11 +168,8 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
 
   async function loadCurrentUser() {
     try {
-      const response = await fetch('/api/user', { credentials: 'include' })
-      if (response.ok) {
-        const responseData = await response.json()
-        setUser(responseData.data?.user || responseData.user)
-      }
+      const data = await apiGet<{ user: any }>('/api/user')
+      setUserLocal(data.user)
     } catch (error) {
       console.error('Error loading current user:', error)
     }
@@ -179,11 +177,8 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
 
   async function loadUsers() {
     try {
-      const res = await fetch('/api/users', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setUsers(response.data?.users || response.users || [])
-      }
+      const data = await apiGet<{ users: any[] }>('/api/users')
+      setUsers(data.users || [])
     } catch (error) {
       console.error('Error loading users:', error)
     }
@@ -191,18 +186,13 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
 
   async function loadBookings() {
     try {
-      // Calculate end date to match totalDays (6 months ahead)
       const endDate = new Date(monthStart)
       endDate.setMonth(endDate.getMonth() + MONTHS_TO_DISPLAY)
       
-      const response = await fetch(
+      const data = await apiGet<{ bookings: any[] }>(
         `/api/bookings?startDate=${getLocalDateString(monthStart)}&endDate=${getLocalDateString(endDate)}`,
-        { credentials: 'include' }
+        { defaultErrorMessage: 'Failed to load bookings' }
       )
-      if (!response.ok) throw new Error('Failed to load bookings')
-      
-      const responseData = await response.json()
-      const data = responseData.data || responseData
       const bookings = data.bookings || []
       
       // Group bookings by resource and day (use all resources, not filtered)
@@ -242,31 +232,17 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
 
   async function syncPublicHolidays() {
     try {
-      // Calculate end date to match totalDays (6 months ahead)
       const endDate = new Date(monthStart)
       endDate.setMonth(endDate.getMonth() + MONTHS_TO_DISPLAY)
-      
-      const response = await fetch('/api/bookings/sync-holidays', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          startDate: getLocalDateString(monthStart),
-          endDate: getLocalDateString(endDate)
-        })
+      const result = await apiPost<{ success: boolean; created: number }>('/api/bookings/sync-holidays', {
+        startDate: getLocalDateString(monthStart),
+        endDate: getLocalDateString(endDate)
       })
-      
-      if (response.ok) {
-        const responseData = await response.json()
-        const result = responseData.data || responseData
-        if (result.success && result.created > 0) {
-          // Reload bookings to show the new holidays
-          await loadBookings()
-        }
+      if (result.success && result.created > 0) {
+        await loadBookings()
       }
-    } catch (error) {
+    } catch {
       // Silently fail - holidays sync is optional
-      console.log('Public holidays sync skipped:', error)
     }
   }
 
@@ -550,49 +526,25 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
         }
       }
       
-      // If not found in current view, try to fetch it directly
       if (!booking) {
-        try {
-          const fetchResponse = await fetch(`/api/bookings/${bookingId}`, {
-            credentials: 'include'
-          })
-          if (fetchResponse.ok) {
-            booking = await fetchResponse.json()
-          }
-        } catch (e) {
+        try { booking = await apiGet(`/api/bookings/${bookingId}`) } catch (e) {
           console.error('Error fetching booking:', e)
         }
       }
+      if (!booking) { toast.error('Booking not found'); return }
       
-      if (!booking) {
-        console.error('Booking not found:', bookingId)
-        toast.error('Booking not found')
-        return
-      }
-      
-      // Use the stored original start day from when drag began
       const originalStartDay = drag.originalStartDay ?? drag.startDay
       const newDayIndex = clamp(drag.endDay, 0, totalDays - 1)
-      
-      // Calculate the offset from the original drag start position
       const daysDiff = newDayIndex - originalStartDay
-      
-      // Check if resource changed
       const targetResourceId = drag.endResourceId || drag.resourceId
       const resourceChanged = targetResourceId !== booking.resource_id
       
-      // If no change in position or resource, don't save
-      if (daysDiff === 0 && !resourceChanged) {
-        return
-      }
+      if (daysDiff === 0 && !resourceChanged) return
       
-      // Calculate new dates based on the booking's original dates
       const bookingStartDate = normalizeToMidnight(parseLocalDateString(booking.start_date))
       const bookingEndDate = normalizeToMidnight(parseLocalDateString(booking.end_date || booking.start_date))
-      
       const newStartDate = new Date(bookingStartDate)
       newStartDate.setDate(newStartDate.getDate() + daysDiff)
-      
       const newEndDate = new Date(bookingEndDate)
       newEndDate.setDate(newEndDate.getDate() + daysDiff)
       
@@ -600,26 +552,14 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
         startDate: getLocalDateString(normalizeToMidnight(newStartDate)),
         endDate: getLocalDateString(normalizeToMidnight(newEndDate))
       }
+      if (resourceChanged) updateData.resourceId = targetResourceId
       
-      // If moved to different resource, update resource_id
-      if (resourceChanged) {
-        updateData.resourceId = targetResourceId
-      }
-      
-      const response = await fetch(`/api/bookings/${booking.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(updateData)
-      })
-      
-      if (response.ok) {
+      try {
+        await apiPut(`/api/bookings/${booking.id}`, updateData, { defaultErrorMessage: 'Failed to update booking' })
         await loadBookings()
         toast.success('Booking updated')
-      } else {
-        const errorText = await response.text()
-        console.error('Failed to update booking:', response.status, errorText)
-        toast.error('Failed to update booking')
+      } catch (error: unknown) {
+        toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to update booking')
       }
     } catch (error) {
       console.error('Error saving booking:', error)
@@ -647,76 +587,45 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
         }
       }
       
-      // If not found in current view, try to fetch it directly
       if (!booking) {
-        try {
-          const fetchResponse = await fetch(`/api/bookings/${bookingId}`, {
-            credentials: 'include'
-          })
-          if (fetchResponse.ok) {
-            booking = await fetchResponse.json()
-          }
-        } catch (e) {
+        try { booking = await apiGet(`/api/bookings/${bookingId}`) } catch (e) {
           console.error('Error fetching booking:', e)
         }
       }
+      if (!booking) { toast.error('Booking not found'); return }
       
-      if (!booking) {
-        console.error('Booking not found:', bookingId)
-        toast.error('Booking not found')
-        return
-      }
-      
-      // Use the stored original start day from when drag began
       const originalStartDay = drag.originalStartDay ?? drag.startDay
       const newDayIndex = clamp(drag.endDay, 0, totalDays - 1)
-      
-      // Calculate the offset from the original drag start position
       const daysDiff = newDayIndex - originalStartDay
       
-      // Calculate new dates based on the booking's original dates
       const bookingStartDate = normalizeToMidnight(parseLocalDateString(booking.start_date))
       const bookingEndDate = normalizeToMidnight(parseLocalDateString(booking.end_date || booking.start_date))
-      
       const newStartDate = new Date(bookingStartDate)
       newStartDate.setDate(newStartDate.getDate() + daysDiff)
-      
       const newEndDate = new Date(bookingEndDate)
       newEndDate.setDate(newEndDate.getDate() + daysDiff)
       
-      // Use target resource if dragging to different row, otherwise use original
       const targetResourceId = drag.endResourceId || drag.resourceId
       
-      // Create new booking with all the same properties
-      const bookingData = {
-        resourceId: targetResourceId,
-        projectId: booking.project_id || null,
-        title: booking.title || 'New Booking',
-        startDate: getLocalDateString(newStartDate),
-        endDate: getLocalDateString(newEndDate),
-        startTime: booking.start_time || null,
-        endTime: booking.end_time || null,
-        hours: booking.hours || null,
-        color: booking.color || null,
-        priority: booking.priority || 'normal',
-        projectManagerId: booking.project_manager_id || null,
-        tentative: booking.tentative || false
-      }
-      
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(bookingData)
-      })
-      
-      if (response.ok) {
+      try {
+        await apiPost('/api/bookings', {
+          resourceId: targetResourceId,
+          projectId: booking.project_id || null,
+          title: booking.title || 'New Booking',
+          startDate: getLocalDateString(newStartDate),
+          endDate: getLocalDateString(newEndDate),
+          startTime: booking.start_time || null,
+          endTime: booking.end_time || null,
+          hours: booking.hours || null,
+          color: booking.color || null,
+          priority: booking.priority || 'normal',
+          projectManagerId: booking.project_manager_id || null,
+          tentative: booking.tentative || false
+        }, { defaultErrorMessage: 'Failed to duplicate booking' })
         await loadBookings()
         toast.success('Booking duplicated')
-      } else {
-        const errorText = await response.text()
-        console.error('Failed to duplicate booking:', response.status, errorText)
-        toast.error('Failed to duplicate booking')
+      } catch (error: unknown) {
+        toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to duplicate booking')
       }
     } catch (error) {
       console.error('Error duplicating booking:', error)
@@ -744,25 +653,12 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
         }
       }
 
-      // If not found in current view, try to fetch it directly
       if (!booking) {
-        try {
-          const fetchResponse = await fetch(`/api/bookings/${bookingId}`, {
-            credentials: 'include'
-          })
-          if (fetchResponse.ok) {
-            booking = await fetchResponse.json()
-          }
-        } catch (e) {
+        try { booking = await apiGet(`/api/bookings/${bookingId}`) } catch (e) {
           console.error('Error fetching booking:', e)
         }
       }
-
-      if (!booking) {
-        console.error('Booking not found:', bookingId)
-        toast.error('Booking not found')
-        return
-      }
+      if (!booking) { toast.error('Booking not found'); return }
 
       const newEdgeDay = clamp(drag.endDay, 0, totalDays - 1)
 
@@ -785,23 +681,15 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
       const newStartDate = getDateForDay(monthStart, newStartIndex)
       const newEndDate = getDateForDay(monthStart, newEndIndex)
 
-      const response = await fetch(`/api/bookings/${booking.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      try {
+        await apiPut(`/api/bookings/${booking.id}`, {
           startDate: getLocalDateString(newStartDate),
           endDate: getLocalDateString(newEndDate)
-        })
-      })
-
-      if (response.ok) {
+        }, { defaultErrorMessage: 'Failed to update booking' })
         await loadBookings()
         toast.success('Booking updated')
-      } else {
-        const errorText = await response.text()
-        console.error('Failed to update booking:', response.status, errorText)
-        toast.error('Failed to update booking')
+      } catch (error: unknown) {
+        toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to update booking')
       }
     } catch (error) {
       console.error('Error resizing booking:', error)
@@ -845,40 +733,20 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
         repeatGroupId: data.repeatGroupId || null
       }
       
-      console.log('Creating booking with data:', bookingData)
-      
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(bookingData)
-      })
-      
-      if (response.ok) {
-        await loadBookings()
-        toast.success('Booking created')
-        setShowBookingDialog(false)
-        setNewBookingData(null)
-      } else {
-        throw await handleApiError(
-          response,
-          `Failed to create booking (${response.status})`,
-          'create booking'
-        )
-      }
+      await apiPost('/api/bookings', bookingData, { defaultErrorMessage: 'Failed to create booking' })
+      await loadBookings()
+      toast.success('Booking created')
+      setShowBookingDialog(false)
+      setNewBookingData(null)
     } catch (error) {
       console.error('Error creating booking:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to create booking')
+      toast.error(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : 'Failed to create booking')
     }
   }
 
   async function updateBooking(data: any) {
     try {
-      const response = await fetch(`/api/bookings/${editingBooking.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      body: JSON.stringify({
+      await apiPut(`/api/bookings/${editingBooking.id}`, {
         title: data.title,
         projectId: data.projectId || null,
         startDate: data.startDate,
@@ -890,21 +758,11 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
         priority: data.priority ? data.priority : 'normal',
         projectManagerId: data.projectManagerId || null,
         tentative: data.tentative || false
-      })
-      })
-      
-      if (response.ok) {
-        await loadBookings()
-        toast.success('Booking updated')
-        setShowBookingDialog(false)
-        setEditingBooking(null)
-      } else {
-        throw await handleApiError(
-          response,
-          `Failed to update booking (${response.status})`,
-          'update booking'
-        )
-      }
+      }, { defaultErrorMessage: 'Failed to update booking' })
+      await loadBookings()
+      toast.success('Booking updated')
+      setShowBookingDialog(false)
+      setEditingBooking(null)
     } catch (error) {
       console.error('Error updating booking:', error)
       toast.error('Failed to update booking')
@@ -913,26 +771,11 @@ export default function ResourceSchedule({ monthStart, resources, projects }: Re
 
   async function deleteBooking(bookingId: string) {
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      if (response.ok) {
-        const responseData = await response.json()
-        const result = responseData.data || responseData
-        await loadBookings()
-        // Show message if multiple bookings were deleted (repeat series)
-        if (result.deletedCount && result.deletedCount > 1) {
-          toast.success(`Deleted ${result.deletedCount} related repeat booking(s)`)
-        } else {
-          toast.success('Booking deleted')
-        }
-        setShowBookingDialog(false)
-        setEditingBooking(null)
-      } else {
-        throw new Error('Failed to delete booking')
-      }
+      await apiDelete(`/api/bookings/${bookingId}`, { defaultErrorMessage: 'Failed to delete booking' })
+      await loadBookings()
+      toast.success('Booking deleted')
+      setShowBookingDialog(false)
+      setEditingBooking(null)
     } catch (error) {
       console.error('Error deleting booking:', error)
       toast.error('Failed to delete booking')

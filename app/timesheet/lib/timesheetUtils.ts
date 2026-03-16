@@ -2,7 +2,7 @@
  * Pure utilities for timesheet timeline: segments, time labels, summary, hydration.
  */
 
-import { startOfWeek, getLocalDateString, normalizeToMidnight } from '../lib/utils/dateUtils'
+import { startOfWeek, getLocalDateString, normalizeToMidnight } from '../../lib/utils/dateUtils'
 import { base64ToSlots, slotsToBase64 } from './slotBitmap'
 import { FULL_DAY_SLOTS, LEGACY_OFFSET, LEGACY_SLOTS, type EntryType } from './constants'
 
@@ -113,7 +113,13 @@ export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boole
     for (const r of rows) {
       const jobNumber = `${r.jobPrefix || ''}${r.jobNumber || ''}`.trim()
       const hours = (r.slots?.filter(Boolean).length || 0) * 0.25
-      const overtime = r.overtimeHours || 0
+      // Derive overtime from slotEntryTypes (source of truth) so the summary is
+      // correct even when row.overtimeHours is stale (e.g. loaded before settings resolved).
+      const overtime = overtimeEnabled
+        ? (r.slotEntryTypes || []).filter(
+            (t: string) => t === 'overtime' || t === 'extra-overtime'
+          ).length * 0.25
+        : 0
 
       if (!jobNumber) continue
 
@@ -135,9 +141,7 @@ export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boole
 
       dayTotals[day] += hours
       totalHours += hours
-      if (overtimeEnabled) {
-        totalOvertimeHours += overtime
-      }
+      totalOvertimeHours += overtime
     }
   }
 

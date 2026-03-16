@@ -1,40 +1,40 @@
 'use client'
 import { useEffect, useMemo, useRef } from 'react'
-import { useToast } from '../components/Toast'
-import { getLocalDateString } from '../lib/utils/dateUtils'
+import { useToast } from '../../components/Toast'
+import { getLocalDateString } from '../../lib/utils/dateUtils'
 import {
   DAYS,
   FULL_DAY_SLOTS,
   SLOT_WIDTH_PX,
   DEFAULT_SCROLL_START_SLOT,
   type EntryType,
-} from './constants'
+} from '../lib/constants'
 import {
   formatDateInput,
   computeWeeklySummary,
   computeOverlaps,
   lastUsedJobsFromSummary,
-} from './timesheetUtils'
-import ConfirmDialog from '../components/ConfirmDialog'
-import DashboardCards from './components/DashboardCards'
-import DayTabs from './components/DayTabs'
-import EntryTypeDialog from './components/EntryTypeDialog'
-import OverlapWarningDialog from './components/OverlapWarningDialog'
-import RowTrack from './components/RowTrack'
-import SearchableProjectDropdown from './components/SearchableProjectDropdown'
-import TimelineHeaderStrip from './components/TimelineHeaderStrip'
-import WeeklySummary from './components/WeeklySummary'
+} from '../lib/timesheetUtils'
+import ConfirmDialog from '../../components/ConfirmDialog'
+import DashboardCards from './DashboardCards'
+import DayTabs from './DayTabs'
+import EntryTypeDialog from './EntryTypeDialog'
+import OverlapWarningDialog from './OverlapWarningDialog'
+import RowTrack from './RowTrack'
+import SearchableProjectDropdown from './SearchableProjectDropdown'
+import TimelineHeaderStrip from './TimelineHeaderStrip'
+import WeeklySummary from './WeeklySummary'
 import {
   useTimelineSettings,
   useTimesheetData,
   useTimelineInteractions,
   useTimer,
-} from './hooks'
+} from '../hooks'
 
 type TimelineProps = { userName?: string }
 
 // Re-export for consumers that import from Timeline
-export type { EntryType } from './constants'
+export type { EntryType } from '../lib/constants'
 
 export default function Timeline({ userName }: TimelineProps) {
   const toast = useToast()
@@ -174,25 +174,39 @@ export default function Timeline({ userName }: TimelineProps) {
   )
   const overlaps = useMemo(() => computeOverlaps(rowsByDay[activeDay] || [], totalSlots), [rowsByDay, activeDay, totalSlots])
 
-  function scheduleAutoSave() {
+  useEffect(() => {
     if (isDraggingRef.current) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => autoSave(), 800)
-  }
-
-  useEffect(() => {
-    scheduleAutoSave()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  // autoSave is stable per render and deliberately excluded to avoid loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowsByDay, weekStart])
 
-  // Clear all overtime hours when overtime is disabled
+  // Zero out overtimeHours in row state when overtime is disabled so serialization stays consistent.
   useEffect(() => {
     if (!overtimeEnabled) {
-      setRowsByDay(prev => prev.map(dayRows => 
+      setRowsByDay(prev => prev.map(dayRows =>
         dayRows.map(row => ({ ...row, overtimeHours: 0 }))
       ))
     }
   }, [overtimeEnabled])
+
+  // Auto-append a blank trailing row whenever the last row on the active day gets modified.
+  // This replaces the manual "Add job" button.
+  useEffect(() => {
+    const dayRows = rowsByDay[activeDay] || []
+    if (dayRows.length === 0) return
+    const lastRow = dayRows[dayRows.length - 1]
+    const lastIsEmpty = !lastRow.jobNumber && !lastRow.slots?.some(Boolean)
+    if (!lastIsEmpty) {
+      addRow(activeDay)
+    }
+  // addRow is a stable closure over setRowsByDay; omitted to avoid spurious re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowsByDay, activeDay])
 
   // Auto-calculate weekend overtime per job - only when setting toggles
   const previousWeekendOvertimeEnabled = useRef(weekendOvertimeEnabled)
@@ -443,7 +457,6 @@ export default function Timeline({ userName }: TimelineProps) {
                 </small>
               )}
             </div>
-            <button onClick={() => addRow(activeDay)} style={{ background: 'var(--primary)', borderColor: 'var(--primary)' }}>Add job</button>
           </div>
           <div
             style={{
@@ -578,7 +591,8 @@ export default function Timeline({ userName }: TimelineProps) {
               const next = [...dayNotes]
               next[activeDay] = e.target.value
               setDayNotes(next)
-              scheduleAutoSave()
+              if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+              saveTimerRef.current = setTimeout(() => autoSave(), 800)
             }}
             style={{
               width: '100%',

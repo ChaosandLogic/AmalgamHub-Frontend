@@ -82,19 +82,6 @@ export default function TaskDialog({
     }
   }, [task, defaultStartDate, defaultEndDate, defaultColor])
 
-  // Load users if not provided
-  useEffect(() => {
-    if (users.length === 0) {
-      fetch('/api/user', { credentials: 'include' })
-        .then(res => res.json())
-        .then(data => {
-          // Users would need to be loaded from a users endpoint
-          // For now, we'll work with the provided users array
-        })
-        .catch(err => console.error('Error loading users:', err))
-    }
-  }, [users.length])
-
   async function handleSave() {
     if (!title.trim()) {
       toast.error('Title is required')
@@ -126,9 +113,9 @@ export default function TaskDialog({
 
       await onSave(taskData)
       onClose()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving task:', error)
-      toast.error(error.message || 'Failed to save task')
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to save task')
     } finally {
       setLoading(false)
     }
@@ -145,9 +132,9 @@ export default function TaskDialog({
     try {
       await onDelete(task.id)
       onClose()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting task:', error)
-      toast.error(error.message || 'Failed to delete task')
+      toast.error((error instanceof Error ? error.message : String(error)) || 'Failed to delete task')
     } finally {
       setLoading(false)
     }
