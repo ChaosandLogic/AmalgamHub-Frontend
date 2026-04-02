@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiGet } from '../api/client'
 
 interface UseApiDataOptions<T> {
@@ -27,7 +27,11 @@ export function useApiData<T>(
   const [error, setError] = useState('')
 
   const skip = options?.skip
-  const transform = options?.transform
+
+  // Keep transform in a ref so callers can pass inline arrow functions without
+  // causing refetch to be recreated (and the effect to fire) on every render.
+  const transformRef = useRef(options?.transform)
+  transformRef.current = options?.transform
 
   const refetch = useCallback(async () => {
     if (!url || skip) {
@@ -38,13 +42,13 @@ export function useApiData<T>(
     setError('')
     try {
       const raw = await apiGet(url)
-      setData(transform ? transform(raw) : (raw as T))
+      setData(transformRef.current ? transformRef.current(raw) : (raw as T))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Request failed')
     } finally {
       setLoading(false)
     }
-  }, [url, skip, transform])
+  }, [url, skip]) // transform intentionally excluded — use ref above
 
   useEffect(() => { refetch() }, [refetch])
 

@@ -23,7 +23,8 @@ export async function middleware(req: NextRequest) {
   if (!token) {
     const url = req.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('redirect', pathname)
+    url.search = ''
+    url.searchParams.set('redirect', pathname + req.nextUrl.search)
     return NextResponse.redirect(url)
   }
 
@@ -41,7 +42,8 @@ export async function middleware(req: NextRequest) {
       // Token is invalid or expired - redirect to login
       const url = req.nextUrl.clone()
       url.pathname = '/login'
-      url.searchParams.set('redirect', pathname)
+      url.search = ''
+      url.searchParams.set('redirect', pathname + req.nextUrl.search)
       // Clear invalid token cookie
       const redirect = NextResponse.redirect(url)
       redirect.cookies.delete('token')
@@ -73,7 +75,8 @@ export async function middleware(req: NextRequest) {
     // If we can't verify the token, redirect to login for safety
     const url = req.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('redirect', pathname)
+    url.search = ''
+    url.searchParams.set('redirect', pathname + req.nextUrl.search)
     const redirect = NextResponse.redirect(url)
     redirect.cookies.delete('token')
     return redirect

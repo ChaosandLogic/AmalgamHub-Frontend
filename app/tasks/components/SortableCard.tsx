@@ -2,6 +2,7 @@
 import type { CSSProperties } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { GripVertical } from 'lucide-react'
 import Card from './Card'
 
 interface TaskCard {
@@ -49,30 +50,53 @@ export default function SortableCard({ card, onUpdate, canEdit = true }: Sortabl
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
-    transition,
     isDragging
   } = useSortable({ 
     id: card.id,
-    animateLayoutChanges: () => false, // Disable automatic layout animations
-    disabled: !canEdit // Disable drag if user can't edit
+    animateLayoutChanges: () => false,
+    disabled: !canEdit
   })
 
-  const style: CSSProperties = {
+  const wrapperStyle: CSSProperties = {
+    position: 'relative',
     transform: CSS.Transform.toString(transform),
-    transition: 'none', // Completely disable transitions to prevent snap-back
-    opacity: isDragging ? 0 : 1, // Hide completely during drag (overlay shows it)
-    cursor: canEdit ? (isDragging ? 'grabbing' : 'grab') : 'default',
-    pointerEvents: isDragging ? 'none' : 'auto'
+    transition: 'none',
+    opacity: isDragging ? 0 : 1,
+    pointerEvents: isDragging ? 'none' : 'auto',
+  }
+
+  const handleStyle: CSSProperties = {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 2,
+    display: 'flex',
+    alignItems: 'center',
+    padding: 2,
+    borderRadius: 4,
+    cursor: isDragging ? 'grabbing' : 'grab',
+    color: 'var(--text-tertiary)',
+    touchAction: 'none',
   }
 
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
-      {...attributes}
-      {...(canEdit ? listeners : {})}
-    >
+    <div ref={setNodeRef} style={wrapperStyle} className="card-drag-wrapper">
+      {/* Drag handle — listeners live here only so clicking the rest of the
+          card never starts a drag and won't freeze the card mid-edit. */}
+      {canEdit && (
+        <div
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          style={handleStyle}
+          className="card-drag-handle"
+          title="Drag to reorder"
+        >
+          <GripVertical size={14} />
+        </div>
+      )}
       <Card card={card} onUpdate={onUpdate} isDragging={isDragging} />
     </div>
   )

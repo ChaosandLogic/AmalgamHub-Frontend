@@ -1,6 +1,6 @@
 'use client'
-import { Suspense, useEffect, useState } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useUser } from '../lib/hooks/useUser'
@@ -12,6 +12,7 @@ import { useApiData } from '../lib/hooks/useApiData'
 function GanttPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const pathname = usePathname()
   const toast = useToast()
   
   // Get last visited project from localStorage or URL param
@@ -19,6 +20,8 @@ function GanttPageContent() {
     // Priority: URL param > localStorage > null
     const urlProjectId = searchParams.get('projectId')
     if (urlProjectId) return urlProjectId
+    
+    if (typeof window === 'undefined') return null
     
     try {
       return localStorage.getItem('gantt_lastProjectId')
@@ -35,12 +38,12 @@ function GanttPageContent() {
   const { data: projectsData } = useApiData<any[]>('/api/projects', {
     transform: (raw: any) => raw?.projects ?? [],
   })
-  const projects = projectsData ?? []
+  const projects = useMemo(() => projectsData ?? [], [projectsData])
 
   const { data: usersData } = useApiData<any[]>('/api/users', {
     transform: (raw: any) => raw?.users ?? [],
   })
-  const users = usersData ?? []
+  const users = useMemo(() => usersData ?? [], [usersData])
   
   // Store last visited project in localStorage
   const storeLastProjectId = (projId: string | null) => {
@@ -63,6 +66,12 @@ function GanttPageContent() {
       return date
     }
     
+    if (typeof window === 'undefined') {
+      const date = new Date()
+      date.setDate(1)
+      return date
+    }
+
     try {
       const stored = localStorage.getItem(`gantt_startDate_${projId}`)
       if (stored) {
@@ -96,6 +105,8 @@ function GanttPageContent() {
   const getStoredCreatedBy = (projId: string | null): string | null => {
     if (!projId) return null
     
+    if (typeof window === 'undefined') return null
+
     try {
       return localStorage.getItem(`gantt_createdBy_${projId}`)
     } catch (e) {
@@ -142,20 +153,23 @@ function GanttPageContent() {
     }
   }
 
-  // Sync selectedProject and URL when projects load or projectId changes
+  // Sync selectedProject and URL when projects load or projectId changes.
+  // Guard with pathname so navigating away from /gantt doesn't trigger a
+  // router.replace back here while the component is still mounted.
   useEffect(() => {
+    if (pathname !== '/gantt') return
     if (!projects.length) return
     if (projectId) {
       const project = projects.find((p: any) => p.id === projectId)
       if (project) {
         setSelectedProject(project)
-        if (!searchParams.get('projectId')) router.push(`/gantt?projectId=${projectId}`)
+        if (!searchParams.get('projectId')) router.replace(`/gantt?projectId=${projectId}`)
       } else {
         setProjectId(null)
         storeLastProjectId(null)
       }
     }
-  }, [projects, projectId, searchParams, router])
+  }, [pathname, projects, projectId, searchParams, router])
 
   // Update URL when project changes
   const handleProjectChange = (newProjectId: string | null) => {
