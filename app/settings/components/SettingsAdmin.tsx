@@ -451,8 +451,8 @@ export default function SettingsAdmin() {
                   type="file"
                   accept=".db"
                   style={{ display: 'none' }}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0]
                     if (!file) return
 
                     try {
@@ -476,12 +476,12 @@ export default function SettingsAdmin() {
                       setMessage(data?.message || 'Database restored successfully. Please refresh the page.')
 
                       // Reset file input
-                      e.target.value = ''
+                      event.target.value = ''
                     } catch (e: unknown) {
                       console.error('Restore error:', e)
                       setError((e instanceof Error ? e.message : String(e)) || 'Failed to restore database')
                       toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to restore database')
-                      e.target.value = ''
+                      event.target.value = ''
                     }
                   }}
                 />

@@ -14,6 +14,7 @@ export interface Resource {
 export interface Project {
   id: string
   name: string
+  code?: string
   color?: string
   project_manager?: string
   account_manager?: string

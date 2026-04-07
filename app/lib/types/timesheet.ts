@@ -1,7 +1,9 @@
 export interface Timesheet {
   id: string
   user_id: string
+  userId?: string
   week_start_date: string
+  weekStartDate?: string
   data: string | Record<string, unknown>
   summary?: {
     totalHours?: number
@@ -10,6 +12,8 @@ export interface Timesheet {
   }
   totalHours?: number
   submitted_at?: string
+  submissionDate?: string
+  submission_date?: string
   created_at: string
 }
 

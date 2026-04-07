@@ -35,8 +35,11 @@ export default function AdminPage() {
       const data = await apiGet<{ timesheets: Timesheet[] }>('/api/timesheets/all')
       const submitted = new Set<string>()
       ;(data.timesheets || []).forEach((ts) => {
-        const tsWeekKey = getLocalDateString(new Date(ts.week_start_date || ts.weekStartDate))
-        if (tsWeekKey === weekKey) submitted.add(ts.user_id || ts.userId)
+        const weekStart = ts.week_start_date || ts.weekStartDate
+        const userId = ts.user_id || ts.userId
+        if (!weekStart || !userId) return
+        const tsWeekKey = getLocalDateString(new Date(weekStart))
+        if (tsWeekKey === weekKey) submitted.add(userId)
       })
       setSubmittedUsers(submitted)
     } catch (e) {
@@ -400,8 +403,12 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
             {!autosaved && <div className="muted">No autosaved timesheet</div>}
             {autosaved && (
               <div style={{ display: 'grid', gap: 6 }}>
-                <div className="muted">Week starting: {new Date(autosaved.weekStartDate).toLocaleDateString()}</div>
-                <div className="muted">Last saved: {new Date(autosaved.submissionDate).toLocaleString()}</div>
+                <div className="muted">
+                  Week starting: {autosaved.weekStartDate || autosaved.week_start_date ? new Date(autosaved.weekStartDate || autosaved.week_start_date || '').toLocaleDateString() : '—'}
+                </div>
+                <div className="muted">
+                  Last saved: {autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at ? new Date(autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at || '').toLocaleString() : '—'}
+                </div>
                 <div className="muted">Jobs: {Object.keys(autosaved.summary?.jobs || {}).length}</div>
                 <div style={{ marginTop: 8 }}>
                   <button 
@@ -482,8 +489,8 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
                         style={{ cursor: 'pointer' }}
                       />
                     </td>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{new Date(ts.weekStartDate || ts.week_start_date).toLocaleDateString()}</td>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{new Date(ts.submissionDate || ts.submission_date).toLocaleString()}</td>
+                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.weekStartDate || ts.week_start_date ? new Date(ts.weekStartDate || ts.week_start_date || '').toLocaleDateString() : '—'}</td>
+                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.submissionDate || ts.submission_date || ts.submitted_at ? new Date(ts.submissionDate || ts.submission_date || ts.submitted_at || '').toLocaleString() : '—'}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{(ts.summary?.totalHours || ts.summary?.total || 0).toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>
                       <button 
