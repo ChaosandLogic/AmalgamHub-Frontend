@@ -1,8 +1,8 @@
 'use client'
 
 import { startOfWeek } from '../../lib/utils/dateUtils'
-import { DAYS } from '../constants'
-import { addDays } from '../timesheetUtils'
+import { DAYS } from '../lib/constants'
+import { addDays } from '../lib/timesheetUtils'
 
 interface DayTabsProps {
   weekStart: Date

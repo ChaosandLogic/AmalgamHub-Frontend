@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useToast } from '../../components/Toast'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { X, Calendar, Tag, UserPlus, Save, Archive } from 'lucide-react'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../lib/api/client'
 
 interface TaskCard {
   id: string
@@ -99,13 +101,8 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
 
   async function loadPresetLabels() {
     try {
-      const res = await fetch('/api/tasks/labels', {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setPresetLabels(data.data?.labels || data.labels || [])
-      }
+      const data = await apiGet<{ labels: any[] }>('/api/tasks/labels')
+      setPresetLabels(data.labels || [])
     } catch (error) {
       console.error('Error loading preset labels:', error)
     }
@@ -113,16 +110,13 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
 
   async function loadCard() {
     try {
-      const res = await fetch(`/api/tasks/cards/${cardId}`, { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const card = response.data?.card || response.card
-        if (card) {
-          setCard(card)
-          setTitle(card.title)
-          setDescription(card.description || '')
-          setDueDate(card.due_date ? card.due_date.substring(0, 10) : '')
-        }
+      const data = await apiGet<{ card: any }>(`/api/tasks/cards/${cardId}`, { defaultErrorMessage: 'Failed to load card' })
+      const card = data.card
+      if (card) {
+        setCard(card)
+        setTitle(card.title)
+        setDescription(card.description || '')
+        setDueDate(card.due_date ? card.due_date.substring(0, 10) : '')
       }
     } catch (error) {
       console.error('Error loading card:', error)
@@ -140,23 +134,13 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
 
     setSaving(true)
     try {
-      const res = await fetch(`/api/tasks/cards/${cardId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          title,
-          description: description || null,
-          due_date: dueDate || null
-        })
-      })
-
-      if (res.ok) {
-        toast.success('Card updated')
-        onClose()
-      } else {
-        throw new Error('Failed to update card')
-      }
+      await apiPut(`/api/tasks/cards/${cardId}`, {
+        title,
+        description: description || null,
+        due_date: dueDate || null
+      }, { defaultErrorMessage: 'Failed to update card' })
+      toast.success('Card updated')
+      onClose()
     } catch (error) {
       console.error('Error saving card:', error)
       toast.error('Failed to save card')
@@ -170,31 +154,16 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
       toast.error('Please select a label')
       return
     }
-
-    // Check if label is already added
-    if (card?.labels && card.labels.some(l => l.name === selectedLabelName)) {
+    if (card?.labels && card.labels.some((l: TaskLabel) => l.name === selectedLabelName)) {
       toast.error('Label already added')
       return
     }
-
     try {
-      const res = await fetch(`/api/tasks/cards/${cardId}/labels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          label_name: selectedLabelName
-        })
-      })
-
-      if (res.ok) {
-        await loadCard()
-        setSelectedLabelName('')
-        setShowLabelPicker(false)
-        toast.success('Label added')
-      } else {
-        throw new Error('Failed to add label')
-      }
+      await apiPost(`/api/tasks/cards/${cardId}/labels`, { label_name: selectedLabelName }, { defaultErrorMessage: 'Failed to add label' })
+      await loadCard()
+      setSelectedLabelName('')
+      setShowLabelPicker(false)
+      toast.success('Label added')
     } catch (error) {
       console.error('Error adding label:', error)
       toast.error('Failed to add label')
@@ -203,18 +172,9 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
 
   async function removeLabel(label: TaskLabel) {
     try {
-      const encodedLabelName = encodeURIComponent(label.name)
-      const res = await fetch(`/api/tasks/cards/${cardId}/labels/${encodedLabelName}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await loadCard()
-        toast.success('Label removed')
-      } else {
-        throw new Error('Failed to remove label')
-      }
+      await apiDelete(`/api/tasks/cards/${cardId}/labels/${encodeURIComponent(label.name)}`, { defaultErrorMessage: 'Failed to remove label' })
+      await loadCard()
+      toast.success('Label removed')
     } catch (error) {
       console.error('Error removing label:', error)
       toast.error('Failed to remove label')
@@ -225,19 +185,10 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
     if (!confirm('Are you sure you want to archive this card? It will be hidden from the board.')) {
       return
     }
-
     try {
-      const res = await fetch(`/api/tasks/cards/${cardId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        toast.success('Card archived')
-        onClose()
-      } else {
-        throw new Error('Failed to archive card')
-      }
+      await apiDelete(`/api/tasks/cards/${cardId}`, { defaultErrorMessage: 'Failed to archive card' })
+      toast.success('Card archived')
+      onClose()
     } catch (error) {
       console.error('Error archiving card:', error)
       toast.error('Failed to archive card')
@@ -270,8 +221,9 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
           }}
           onClick={e => e.stopPropagation()}
         >
-          <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>
-            Loading...
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 48 }}>
+            <LoadingSpinner size={32} />
+            <span style={{ color: 'var(--text-secondary)' }}>Loading...</span>
           </div>
         </div>
       </div>

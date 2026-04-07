@@ -2,12 +2,14 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '../components/Header'
-import ResourceSchedule from './ResourceSchedule'
+import ResourceSchedule from './components/ResourceSchedule'
 import { normalizeToMidnight } from '../lib/utils/dateUtils'
+import { useUser } from '../lib/hooks/useUser'
+import { apiGet } from '../lib/api/client'
 
 export default function SchedulePage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const { user, loading } = useUser()
   const [resources, setResources] = useState<any[]>([])
   const [projects, setProjects] = useState<any[]>([])
   const [monthStart, setMonthStart] = useState(() => {
@@ -17,16 +19,8 @@ export default function SchedulePage() {
   })
 
   useEffect(() => {
-    (async () => {
-      const r = await fetch('/api/user', { credentials: 'include' })
-      if (r.status === 401) {
-        router.replace('/login')
-        return
-      }
-      const response = await r.json()
-      setUser(response.data?.user || response.user)
-    })()
-  }, [router])
+    if (!loading && !user) router.replace('/login')
+  }, [loading, user, router])
 
   useEffect(() => {
     loadResources()
@@ -74,30 +68,20 @@ export default function SchedulePage() {
 
   async function loadResources() {
     try {
-      const res = await fetch('/api/resources', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const apiResources = response.data?.resources || response.resources || []
-        // If no resources exist yet, fall back to some sample resources
-        setResources(apiResources.length > 0 ? apiResources : sampleResources)
-      } else {
-        // On error, still show sample resources so the schedule is usable
-        setResources(sampleResources)
-      }
-    } catch (error) {
-      console.error('Error loading resources:', error)
+      const data = await apiGet<{ resources: any[] }>('/api/resources')
+      const apiResources = data.resources || []
+      // If no resources exist yet, fall back to some sample resources
+      setResources(apiResources.length > 0 ? apiResources : sampleResources)
+    } catch {
+      // On error, still show sample resources so the schedule is usable
       setResources(sampleResources)
     }
   }
 
   async function loadProjects() {
     try {
-      const res = await fetch('/api/projects', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const data = response.data || response
-        setProjects(data.projects || [])
-      }
+      const data = await apiGet<{ projects: any[] }>('/api/projects')
+      setProjects(data.projects || [])
     } catch (error) {
       console.error('Error loading projects:', error)
     }
@@ -106,6 +90,8 @@ export default function SchedulePage() {
   function formatDateInput(d: Date) {
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
   }
+
+  if (loading) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -219,6 +205,7 @@ export default function SchedulePage() {
             monthStart={monthStart}
             resources={resources}
             projects={projects}
+            currentUser={user}
           />
         </div>
       )}

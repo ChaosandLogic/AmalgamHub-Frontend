@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { RowData } from '../types'
-import type { EntryType } from '../constants'
+import type { RowData } from '../lib/types'
+import type { EntryType } from '../lib/constants'
 
 export interface UseTimerParams {
   rowsByDay: Array<Array<RowData>>

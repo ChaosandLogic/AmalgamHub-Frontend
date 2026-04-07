@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useToast } from '../../components/Toast'
 import { Users, X, Plus } from 'lucide-react'
+import { apiGet, apiPost, apiDelete } from '../../lib/api/client'
 
 interface User {
   id: string
@@ -54,11 +55,8 @@ export default function BoardMembers({ boardId, canEdit, onUpdate, showDialog: e
 
   async function loadMembers() {
     try {
-      const res = await fetch(`/api/tasks/boards/${boardId}/permissions`, { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setMembers(response.data?.permissions || response.permissions || [])
-      }
+      const data = await apiGet<{ permissions: any[] }>(`/api/tasks/boards/${boardId}/permissions`)
+      setMembers(data.permissions || [])
     } catch (error) {
       console.error('Error loading board members:', error)
       toast.error('Failed to load board members')
@@ -67,11 +65,8 @@ export default function BoardMembers({ boardId, canEdit, onUpdate, showDialog: e
 
   async function loadUsers() {
     try {
-      const res = await fetch('/api/users', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setAllUsers(response.data?.users || response.users || [])
-      }
+      const data = await apiGet<{ users: User[] }>('/api/users')
+      setAllUsers(data.users || [])
     } catch (error) {
       console.error('Error loading users:', error)
       toast.error('Failed to load users')
@@ -79,42 +74,22 @@ export default function BoardMembers({ boardId, canEdit, onUpdate, showDialog: e
   }
 
   async function addMember() {
-    if (!boardId) {
-      toast.error('Board not found')
-      return
-    }
-    if (!selectedUserId) {
-      toast.error('Please select a user')
-      return
-    }
-
-    // Check if user is already a member
+    if (!boardId) { toast.error('Board not found'); return }
+    if (!selectedUserId) { toast.error('Please select a user'); return }
     if (members.some(m => m.user_id === selectedUserId)) {
       toast.error('User is already a member of this board')
       return
     }
-
     setLoading(true)
     try {
-      const res = await fetch(`/api/tasks/boards/${encodeURIComponent(boardId)}/permissions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          user_id: selectedUserId,
-          permission_level: 'viewer'
-        })
-      })
-
-      if (res.ok) {
-        await loadMembers()
-        setSelectedUserId('')
-        toast.success('Member added')
-        onUpdate?.()
-      } else {
-        const errorData = await res.json().catch(() => ({ message: 'Failed to add member' }))
-        throw new Error(errorData.message || 'Failed to add member')
-      }
+      await apiPost(`/api/tasks/boards/${encodeURIComponent(boardId)}/permissions`, {
+        user_id: selectedUserId,
+        permission_level: 'viewer'
+      }, { defaultErrorMessage: 'Failed to add member' })
+      await loadMembers()
+      setSelectedUserId('')
+      toast.success('Member added')
+      onUpdate?.()
     } catch (error) {
       console.error('Error adding member:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to add member')
@@ -126,19 +101,10 @@ export default function BoardMembers({ boardId, canEdit, onUpdate, showDialog: e
   async function removeMember(userId: string) {
     setLoading(true)
     try {
-      const res = await fetch(`/api/tasks/boards/${boardId}/permissions/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await loadMembers()
-        toast.success('Member removed')
-        onUpdate?.()
-      } else {
-        const errorData = await res.json().catch(() => ({ message: 'Failed to remove member' }))
-        throw new Error(errorData.message || 'Failed to remove member')
-      }
+      await apiDelete(`/api/tasks/boards/${boardId}/permissions/${userId}`, { defaultErrorMessage: 'Failed to remove member' })
+      await loadMembers()
+      toast.success('Member removed')
+      onUpdate?.()
     } catch (error) {
       console.error('Error removing member:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to remove member')

@@ -4,17 +4,16 @@ import Header from '../components/Header'
 import { useToast } from '../components/Toast'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { BarChart3 } from 'lucide-react'
+import { useApiData } from '../lib/hooks/useApiData'
 
 export default function ReportsPage() {
   const toast = useToast()
-  const [loading, setLoading] = useState(true)
-  const [reportData, setReportData] = useState<any>(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'jobs' | 'weekly' | 'monthly'>('overview')
 
+  // Set default date range to last 3 months
   useEffect(() => {
-    // Set default date range to last 3 months
     const end = new Date()
     const start = new Date()
     start.setMonth(start.getMonth() - 3)
@@ -22,31 +21,16 @@ export default function ReportsPage() {
     setStartDate(start.toISOString().split('T')[0])
   }, [])
 
-  useEffect(() => {
-    if (startDate && endDate) {
-      loadReports()
-    }
-  }, [startDate, endDate])
+  const reportsUrl = startDate && endDate
+    ? `/api/reports?${new URLSearchParams({ startDate, endDate })}`
+    : null
 
-  async function loadReports() {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({ startDate, endDate })
-      const r = await fetch(`/api/reports?${params}`, { credentials: 'include' })
-      if (!r.ok) {
-        if (r.status === 403) {
-          throw new Error('Admin access required')
-        }
-        throw new Error('Failed to load reports')
-      }
-      const data = await r.json()
-      setReportData(data.data)
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to load reports')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: reportData, loading, error, refetch: refreshReports } = useApiData<any>(reportsUrl)
+
+  useEffect(() => {
+    if (error) toast.error(error || 'Failed to load reports')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error])
 
   function exportToCSV(data: any[], filename: string) {
     try {
@@ -256,7 +240,7 @@ export default function ReportsPage() {
               />
             </label>
             <button 
-              onClick={loadReports} 
+              onClick={refreshReports} 
               style={{
                 ...button,
                 transition: 'all 0.2s ease'

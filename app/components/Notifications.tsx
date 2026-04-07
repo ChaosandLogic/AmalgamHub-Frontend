@@ -4,6 +4,10 @@ import { useRouter } from 'next/navigation'
 import { Bell, X } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
 import { useToast } from './Toast'
+import LoadingSpinner from './LoadingSpinner'
+import { getSocketApiUrl } from '../lib/utils/socketUrl'
+import { apiGet, apiPatch, apiDelete } from '../lib/api/client'
+import { NOTIFICATION_POLL_INTERVAL_MS } from '../lib/constants/ui'
 
 interface Notification {
   id: string
@@ -29,23 +33,7 @@ function Notifications() {
     // Only connect if we're in the browser
     if (typeof window === 'undefined') return
 
-    // Connect to Socket.io for real-time notifications
-    // Use NEXT_PUBLIC_API_URL from env or fall back to current origin
-    let apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiUrl && typeof window !== 'undefined') {
-      const currentOrigin = window.location.origin;
-      const port = window.location.port;
-      if (port === '8080' || port === '8443') {
-        apiUrl = currentOrigin;
-      } else {
-        apiUrl = currentOrigin.replace(/:\d+$/, ':3002');
-        if (!apiUrl.includes(':')) apiUrl = `${currentOrigin}:3002`;
-      }
-    }
-    if (!apiUrl) {
-      apiUrl = 'http://localhost:3002'; // Final fallback
-    }
-    
+    const apiUrl = getSocketApiUrl()
     const newSocket = io(apiUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
@@ -59,11 +47,9 @@ function Notifications() {
     })
 
     newSocket.on('connect', () => {
-      console.log('✅ [Notifications] Connected to Socket.io at', apiUrl)
     })
 
     newSocket.on('connect_error', (err) => {
-      console.warn('⚠️  [Notifications] Connection error:', err.message, 'at', apiUrl)
       // Silently handle connection errors - polling will be used as fallback
     })
 
@@ -77,10 +63,8 @@ function Notifications() {
 
     // Listen for new notifications: show toast and add to bell dropdown
     newSocket.on('new_notification', (notification: Notification) => {
-      console.log('🔔 [Notifications] Received new notification:', notification)
       setNotifications(prev => {
         if (prev.some(n => n.id === notification.id)) {
-          console.log('⚠️  [Notifications] Duplicate notification ignored:', notification.id)
           return prev
         }
         return [notification, ...prev]
@@ -112,7 +96,7 @@ function Notifications() {
       if (showDropdown) {
         loadNotifications()
       }
-    }, 30000)
+    }, NOTIFICATION_POLL_INTERVAL_MS)
     
     return () => clearInterval(interval)
   }, [showDropdown])
@@ -136,11 +120,8 @@ function Notifications() {
 
   async function loadNotifications() {
     try {
-      const res = await fetch('/api/notifications?limit=20', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setNotifications(response.data?.notifications || response.notifications || [])
-      }
+      const data = await apiGet<{ notifications: Notification[] }>('/api/notifications?limit=20')
+      setNotifications(data.notifications || [])
     } catch (err) {
       console.error('Error loading notifications:', err)
     } finally {
@@ -150,11 +131,8 @@ function Notifications() {
 
   async function loadUnreadCount() {
     try {
-      const res = await fetch('/api/notifications/unread-count', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setUnreadCount(response.data?.count || response.count || 0)
-      }
+      const data = await apiGet<{ count: number }>('/api/notifications/unread-count')
+      setUnreadCount(data.count || 0)
     } catch (err) {
       console.error('Error loading unread count:', err)
     }
@@ -162,10 +140,7 @@ function Notifications() {
 
   async function markAsRead(notificationId: string) {
     try {
-      await fetch(`/api/notifications/${notificationId}/read`, {
-        method: 'POST',
-        credentials: 'include'
-      })
+      await apiPatch(`/api/notifications/${notificationId}`)
       setNotifications(prev => prev.map(n => 
         n.id === notificationId ? { ...n, read: true } : n
       ))
@@ -177,10 +152,7 @@ function Notifications() {
 
   async function markAllAsRead() {
     try {
-      await fetch('/api/notifications/read-all', {
-        method: 'POST',
-        credentials: 'include'
-      })
+      await apiPatch('/api/notifications/read-all')
       setNotifications(prev => prev.map(n => ({ ...n, read: true })))
       setUnreadCount(0)
     } catch (err) {
@@ -190,10 +162,7 @@ function Notifications() {
 
   async function deleteNotification(notificationId: string) {
     try {
-      await fetch(`/api/notifications/${notificationId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
+      await apiDelete(`/api/notifications/${notificationId}`)
       setNotifications(prev => prev.filter(n => n.id !== notificationId))
       const deleted = notifications.find(n => n.id === notificationId)
       if (deleted && !deleted.read) {
@@ -252,6 +221,9 @@ function Notifications() {
             loadNotifications()
           }
         }}
+        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
+        aria-expanded={showDropdown}
+        aria-haspopup="true"
         style={{
           position: 'relative',
           padding: '8px',
@@ -351,8 +323,9 @@ function Notifications() {
           {/* Notifications List */}
           <div style={{ flex: 1, overflow: 'auto' }}>
             {loading ? (
-              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)' }}>
-                Loading...
+              <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: 'var(--text-secondary)' }}>
+                <LoadingSpinner size={28} />
+                <span>Loading...</span>
               </div>
             ) : notifications.length === 0 ? (
               <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>

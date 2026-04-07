@@ -1,6 +1,6 @@
 'use client'
 
-import { formatTimeFromString } from '../timesheetUtils'
+import { formatTimeFromString } from '../lib/timesheetUtils'
 
 interface DashboardCardsProps {
   summary: {

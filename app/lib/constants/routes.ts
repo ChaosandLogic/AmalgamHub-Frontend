@@ -1,14 +1,12 @@
 /**
- * Application route constants
- * Centralized location for all route paths to enable easy updates
+ * Application route constants.
+ * Centralized so any route change is made in one place.
  */
 
-export const DEFAULT_DASHBOARD_ROUTE = '/schedule'
-
 export const ROUTES = {
-  DASHBOARD: DEFAULT_DASHBOARD_ROUTE,
-  TIMESHEET: '/timesheet',
+  DASHBOARD: '/schedule',
   SCHEDULE: '/schedule',
+  TIMESHEET: '/timesheet',
   TASKS: '/tasks',
   RESOURCES: '/resources',
   PROJECTS: '/projects',
@@ -16,8 +14,14 @@ export const ROUTES = {
   SETTINGS: '/settings',
   LOGIN: '/login',
   REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
   ADMIN: '/admin',
   REPORTS: '/reports',
+  HISTORY: '/history',
+  VIEW: '/view',
+  VIEW_CURRENT: '/view-current',
+  GANTT: '/gantt',
 } as const
 
-
+export const DEFAULT_DASHBOARD_ROUTE = ROUTES.DASHBOARD

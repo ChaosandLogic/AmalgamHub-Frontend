@@ -1,40 +1,25 @@
 'use client'
-import { useEffect, useState } from 'react'
 import Header from '../components/Header'
+import LoadingSpinner from '../components/LoadingSpinner'
 import { useToast } from '../components/Toast'
+import { apiDownload } from '../lib/api/client'
+import { useApiData } from '../lib/hooks/useApiData'
 
 export default function HistoryPage() {
   const toast = useToast()
-  const [rows, setRows] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      try {
-        const r = await fetch('/api/timesheets', { credentials: 'include' })
-        if (!r.ok) {
-          const errorData = await r.json().catch(() => ({ message: 'Failed to load history' }))
-          throw new Error(errorData.message || 'Failed to load history')
-        }
-        const response = await r.json()
-        const data = response.data || response
-        if (!cancelled) setRows(Array.isArray(data.timesheets) ? data.timesheets : [])
-      } catch (e: any) { if (!cancelled) setError(e.message) } finally { if (!cancelled) setLoading(false) }
-    })()
-    return () => { cancelled = true }
-  }, [])
+  const { data: rows, loading, error } = useApiData<any[]>('/api/timesheets', {
+    transform: (raw: any) => Array.isArray(raw?.timesheets) ? raw.timesheets : [],
+  })
 
   async function onExport(id: string) {
     try {
-      const res = await fetch('/api/export-csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }), credentials: 'include' })
-      if (!res.ok) throw new Error('Failed to export timesheet')
-      const blob = await res.blob(); const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = `timesheet-${id}.csv`; document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); document.body.removeChild(a)
-    } catch (e: any) { 
-      toast.error(e.message) 
+      await apiDownload(
+        '/api/timesheets/export-csv',
+        `timesheet-${id}.csv`,
+        { method: 'POST', body: JSON.stringify({ id }) }
+      )
+    } catch (e: unknown) {
+      toast.error((e instanceof Error ? e.message : String(e)))
     }
   }
 
@@ -53,7 +38,12 @@ export default function HistoryPage() {
       <Header />
       <div style={{ padding: 16 }}>
         <h2 style={{ marginTop: 0 }}>History</h2>
-        {loading && <div>Loading…</div>}
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+            <LoadingSpinner size={28} />
+            <span>Loading…</span>
+          </div>
+        )}
         {error && <div style={{ color: 'crimson' }}>{error}</div>}
         {!loading && !error && (
           <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -67,21 +57,22 @@ export default function HistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
+                {(rows ?? []).length === 0 && (
                   <tr><td colSpan={4} style={{ padding: 16, textAlign: 'center', color: 'var(--text-secondary)' }}>No timesheets found</td></tr>
                 )}
-                {rows.map(ts => (
+                {(rows ?? []).map(ts => (
                   <tr key={ts.id}>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>{fmtDate(ts.week_start_date || ts.weekStartDate)}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>{fmtDateTime(ts.submission_date || ts.submissionDate)}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{total(ts).toFixed(2)}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                      <button 
+                      <button
+                        type="button"
+                        className="btn-lift"
                         onClick={() => window.open(`/view?id=${ts.id}&from=history`, '_blank')}
-                        style={{ 
-                          background: 'transparent', 
-                          color: 'var(--primary)', 
-                          borderColor: 'var(--primary)',
+                        style={{
+                          background: 'transparent',
+                          color: 'var(--primary)',
                           border: '1px solid var(--primary)',
                           padding: '6px 12px',
                           borderRadius: '6px',
@@ -92,11 +83,13 @@ export default function HistoryPage() {
                       >
                         View
                       </button>
-                      <button 
+                      <button
+                        type="button"
+                        className="btn-lift"
                         onClick={() => onExport(ts.id)}
-                        style={{ 
-                          background: 'var(--primary)', 
-                          color: 'white', 
+                        style={{
+                          background: 'var(--primary)',
+                          color: 'white',
                           border: '1px solid var(--primary)',
                           padding: '6px 12px',
                           borderRadius: '6px',

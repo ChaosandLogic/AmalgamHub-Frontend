@@ -1,68 +1,34 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '../components/Header'
+import LoadingSpinner from '../components/LoadingSpinner'
+import { useApiData } from '../lib/hooks/useApiData'
 
 function ViewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const timesheetId = searchParams.get('id')
-  const from = searchParams.get('from') // Get the referring page
-  
-  const [timesheet, setTimesheet] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const from = searchParams.get('from')
 
-  // Determine where to navigate back to
+  const { data: timesheet, loading, error } = useApiData<any>(
+    timesheetId ? `/api/timesheets/${timesheetId}` : null,
+    { transform: (raw: any) => raw?.timesheet ?? null }
+  )
+
   const getReturnPath = () => {
     if (from === 'history') return '/history'
     if (from === 'admin') return '/admin'
-    // Default fallback - try to detect from referrer or default to admin
     return '/admin'
   }
-
-  useEffect(() => {
-    if (!timesheetId) {
-      setError('No timesheet ID provided')
-      setLoading(false)
-      return
-    }
-
-    const loadTimesheet = async () => {
-      try {
-        const response = await fetch(`/api/timesheet/${timesheetId}`, { 
-          credentials: 'include' 
-        })
-        
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Timesheet not found')
-          } else if (response.status === 403) {
-            throw new Error('Access denied')
-          } else {
-            throw new Error('Failed to load timesheet')
-          }
-        }
-        
-        const responseData = await response.json()
-        const timesheet = responseData.data?.timesheet || responseData.timesheet
-        setTimesheet(timesheet)
-      } catch (err: any) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadTimesheet()
-  }, [timesheetId])
 
   if (loading) {
     return (
       <div>
         <Header />
-        <div style={{ padding: 16, textAlign: 'center' }}>
-          <div>Loading timesheet...</div>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <LoadingSpinner size={32} />
+          <span>Loading timesheet...</span>
         </div>
       </div>
     )
@@ -301,7 +267,12 @@ function ViewContent() {
 
 export default function ViewPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: '100vh' }}>
+        <LoadingSpinner size={32} />
+        <span>Loading...</span>
+      </div>
+    }>
       <ViewContent />
     </Suspense>
   )

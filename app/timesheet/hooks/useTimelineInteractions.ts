@@ -1,14 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { DAYS } from '../constants'
-import type { EntryType } from '../constants'
+import { DAYS } from '../lib/constants'
+import type { EntryType } from '../lib/constants'
 import {
   clamp,
   formatTime,
   getSegments,
   getSegmentAt,
-} from '../timesheetUtils'
+} from '../lib/timesheetUtils'
+import { apiPost, apiPut } from '../../lib/api/client'
 
 export type SelectedSegment = {
   dayIndex: number
@@ -72,17 +73,6 @@ export function useTimelineInteractions({
     return `track-${dayIndex}-${rowId}`
   }
 
-  async function post(path: string, body: any) {
-    const r = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'include',
-    })
-    if (!r.ok) throw new Error('Request failed')
-    return r.json().catch(() => ({}))
-  }
-
   function autoSave() {
     if (isDraggingRef.current) return
     const payload = serialize()
@@ -96,7 +86,7 @@ export function useTimelineInteractions({
         localStorage.setItem('timesheet_autosave', JSON.stringify(payload))
       }
     } catch {}
-    post('/api/autosave', payload).catch(() => {})
+    apiPut('/api/timesheets/draft', payload).catch(() => {})
   }
 
   function onMouseDownCell(
@@ -111,6 +101,8 @@ export function useTimelineInteractions({
     const seg = getSegmentAt(originalSlots, slotIndex)
     const nearThreshold = 1
 
+    const originalSlotEntryTypes = row.slotEntryTypes ? [...row.slotEntryTypes] : []
+
     if (seg) {
       if (Math.abs(slotIndex - seg.start) <= nearThreshold) {
         draggingRef.current = {
@@ -123,6 +115,7 @@ export function useTimelineInteractions({
           anchor: seg.end,
           endSlot: slotIndex,
           originalSlots,
+          originalSlotEntryTypes,
         }
         return
       }
@@ -137,6 +130,7 @@ export function useTimelineInteractions({
           anchor: seg.start,
           endSlot: slotIndex,
           originalSlots,
+          originalSlotEntryTypes,
         }
         return
       }
@@ -148,6 +142,7 @@ export function useTimelineInteractions({
         segmentEnd: seg.end,
         offset: slotIndex - seg.start,
         originalSlots,
+        originalSlotEntryTypes,
       }
       return
     } else {
@@ -159,6 +154,7 @@ export function useTimelineInteractions({
         endSlot: slotIndex,
         filling: true,
         originalSlots,
+        originalSlotEntryTypes,
       }
       applyDrag()
     }
@@ -171,6 +167,7 @@ export function useTimelineInteractions({
     handle: 'left' | 'right'
   ) {
     const originalSlots = [...row.slots]
+    const originalSlotEntryTypes = row.slotEntryTypes ? [...row.slotEntryTypes] : []
     const segs = getSegments(originalSlots)
     let targetSeg: { start: number; end: number } | null = null
     for (const seg of segs) {
@@ -203,6 +200,7 @@ export function useTimelineInteractions({
       anchor,
       endSlot: slotIndex,
       originalSlots,
+      originalSlotEntryTypes,
     }
     isDraggingRef.current = true
   }
@@ -239,20 +237,18 @@ export function useTimelineInteractions({
     updateRow(dayIndex, rowId, (row: any) => {
       const base = [...(drag.originalSlots || row.slots)]
       const slots = [...base]
-      const len =
-        row.slotEntryTypes?.length === slots.length
-          ? row.slotEntryTypes.length
-          : slots.length
-      const slotEntryTypes: ('' | EntryType)[] =
-        row.slotEntryTypes?.length === slots.length
-          ? [...row.slotEntryTypes]
-          : Array.from({ length: len }, (_, i) =>
-              slots[i] ? (row.slotEntryTypes?.[i] || 'standard') : ''
-            )
-      if (slotEntryTypes.length !== slots.length) {
-        while (slotEntryTypes.length < slots.length) slotEntryTypes.push('')
-        slotEntryTypes.length = slots.length
-      }
+      // Always read from the frozen snapshot taken at drag-start (drag.originalSlotEntryTypes).
+      // row.slotEntryTypes reflects intermediate drag state and has '' at the original positions
+      // after the first applyDrag call, which would wipe overtime on every subsequent mouse move.
+      const sourceTypes: ('' | EntryType)[] = drag.originalSlotEntryTypes ?? row.slotEntryTypes ?? []
+      const slotEntryTypes: ('' | EntryType)[] = Array.from(
+        { length: slots.length },
+        (_, i) => {
+          if (!base[i]) return ''
+          const t = sourceTypes[i]
+          return (t === 'overtime' || t === 'extra-overtime' || t === 'standard') ? t : 'standard'
+        }
+      )
 
       if (type === 'range') {
         const start = Math.min(drag.startSlot, drag.endSlot)
@@ -283,27 +279,32 @@ export function useTimelineInteractions({
           slotEntryTypes[i] = preservedType
         }
       } else if (type === 'move') {
-        const segmentLength = drag.segmentEnd - drag.segmentStart + 1
+        const segStart = Math.min(drag.segmentStart, drag.segmentEnd)
+        const segEnd = Math.max(drag.segmentStart, drag.segmentEnd)
+        const segmentLength = segEnd - segStart + 1
         const newStart = drag.endSlot - drag.offset
-        const newEnd = newStart + segmentLength - 1
         const clampedStart = Math.max(
           0,
           Math.min(newStart, totalSlots - segmentLength)
         )
         const clampedEnd = clampedStart + segmentLength - 1
+        // Collect entry types in segment order; explicitly preserve overtime/extra-overtime so move doesn't change them
         const preservedTypes: ('' | EntryType)[] = []
-        for (let i = drag.segmentStart; i <= drag.segmentEnd; i++) {
-          if (i >= 0 && i < slots.length) {
-            preservedTypes.push(slotEntryTypes[i] || 'standard')
+        for (let i = segStart; i <= segEnd; i++) {
+          if (i >= 0 && i < slots.length && i < slotEntryTypes.length) {
+            const t = slotEntryTypes[i]
+            preservedTypes.push(
+              (t === 'overtime' || t === 'extra-overtime' ? t : 'standard') as '' | EntryType
+            )
             slots[i] = false
             slotEntryTypes[i] = ''
           }
         }
         for (let i = clampedStart; i <= clampedEnd; i++) {
+          const idx = i - clampedStart
           if (i >= 0 && i < slots.length) {
             slots[i] = true
-            slotEntryTypes[i] =
-              preservedTypes[i - clampedStart] || 'standard'
+            slotEntryTypes[i] = (preservedTypes[idx] ?? 'standard') as '' | EntryType
           }
         }
       }
@@ -428,7 +429,7 @@ export function useTimelineInteractions({
     setShowConfirmDialog(false)
     try {
       const payload = serialize()
-      const response = await post('/api/save', payload)
+      const response = await apiPost<any>('/api/timesheets', payload)
       const weekKey = getLocalDateString(weekStart)
       setSubmittedWeek(weekKey)
       setSubmittedTimesheets((prev) => ({
@@ -437,9 +438,9 @@ export function useTimelineInteractions({
       }))
       justSubmittedRef.current = true
       toast.success('Timesheet submitted successfully!')
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(
-        error.message || 'Failed to submit timesheet. Please try again.'
+        (error instanceof Error ? error.message : String(error)) || 'Failed to submit timesheet. Please try again.'
       )
       console.error('Submission error:', error)
     }

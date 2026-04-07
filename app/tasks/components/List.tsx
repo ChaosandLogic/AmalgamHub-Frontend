@@ -7,6 +7,7 @@ import { useToast } from '../../components/Toast'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { Plus, MoreVertical, Trash2, Palette } from 'lucide-react'
 import SortableCard from './SortableCard'
+import { apiPost, apiPut, apiDelete } from '../../lib/api/client'
 
 interface TaskList {
   id: string
@@ -122,32 +123,17 @@ export default function List({ list, onCardUpdate, dragHandleProps, canEdit = tr
         ? Math.max(...list.cards.map(c => c.position)) 
         : -1
 
-      const res = await fetch('/api/tasks/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          list_id: list.id,
-          title: newCardTitle,
-          position: maxPosition + 1
-        })
-      })
-
-      if (res.ok) {
-        const response = await res.json()
-        const newCard = response.data?.card as TaskCard
-        if (newCard) {
-          onCardUpdate({ type: 'cardAdded', listId: list.id, card: { ...newCard, labels: newCard.labels || [], members: newCard.members || [] } })
-          setNewCardTitle('')
-          setShowAddCard(false)
-          toast.success('Card created')
-        } else {
-          throw new Error('Invalid response format')
-        }
-      } else {
-        const errorData = await res.json().catch(() => ({ message: 'Failed to create card' }))
-        throw new Error(errorData.message || 'Failed to create card')
-      }
+      const data = await apiPost<{ card: TaskCard }>('/api/tasks/cards', {
+        list_id: list.id,
+        title: newCardTitle,
+        position: maxPosition + 1
+      }, { defaultErrorMessage: 'Failed to create card' })
+      const newCard = data.card
+      if (!newCard) throw new Error('Invalid response format')
+      onCardUpdate({ type: 'cardAdded', listId: list.id, card: { ...newCard, labels: newCard.labels || [], members: newCard.members || [] } })
+      setNewCardTitle('')
+      setShowAddCard(false)
+      toast.success('Card created')
     } catch (error) {
       console.error('Error creating card:', error)
       toast.error('Failed to create card')
@@ -156,17 +142,9 @@ export default function List({ list, onCardUpdate, dragHandleProps, canEdit = tr
 
   async function deleteList() {
     try {
-      const res = await fetch(`/api/tasks/lists/${list.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        toast.success('List deleted')
-        onCardUpdate() // Reload board
-      } else {
-        throw new Error('Failed to delete list')
-      }
+      await apiDelete(`/api/tasks/lists/${list.id}`, { defaultErrorMessage: 'Failed to delete list' })
+      toast.success('List deleted')
+      onCardUpdate()
     } catch (error) {
       console.error('Error deleting list:', error)
       toast.error('Failed to delete list')
@@ -190,45 +168,25 @@ export default function List({ list, onCardUpdate, dragHandleProps, canEdit = tr
     }
 
     try {
-      const res = await fetch(`/api/tasks/lists/${list.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: listName.trim() })
-      })
-
-      if (res.ok) {
-        toast.success('List name updated')
-        setIsEditingName(false)
-        onCardUpdate() // Reload board to get updated name
-      } else {
-        throw new Error('Failed to update list name')
-      }
+      await apiPut(`/api/tasks/lists/${list.id}`, { name: listName.trim() }, { defaultErrorMessage: 'Failed to update list name' })
+      toast.success('List name updated')
+      setIsEditingName(false)
+      onCardUpdate()
     } catch (error) {
       console.error('Error updating list name:', error)
       toast.error('Failed to update list name')
-      setListName(list.name) // Revert to original name
+      setListName(list.name)
       setIsEditingName(false)
     }
   }
 
   async function updateListColor(color: string | null) {
     try {
-      const res = await fetch(`/api/tasks/lists/${list.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ color })
-      })
-
-      if (res.ok) {
-        toast.success('List color updated')
-        setShowColorPicker(false)
-        setShowMenu(false)
-        onCardUpdate() // Reload board to get updated color
-      } else {
-        throw new Error('Failed to update list color')
-      }
+      await apiPut(`/api/tasks/lists/${list.id}`, { color }, { defaultErrorMessage: 'Failed to update list color' })
+      toast.success('List color updated')
+      setShowColorPicker(false)
+      setShowMenu(false)
+      onCardUpdate()
     } catch (error) {
       console.error('Error updating list color:', error)
       toast.error('Failed to update list color')

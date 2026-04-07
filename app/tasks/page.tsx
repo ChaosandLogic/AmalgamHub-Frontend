@@ -7,6 +7,9 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { Plus, MoreVertical, Trash2, Users } from 'lucide-react'
 import Board from './components/Board'
 import BoardMembers from './components/BoardMembers'
+import LoadingSpinner from '../components/LoadingSpinner'
+import { useUser } from '../lib/hooks/useUser'
+import { apiGet, apiPost, apiDelete } from '../lib/api/client'
 
 interface TaskBoard {
   id: string
@@ -31,7 +34,7 @@ export default function TasksPage() {
   const [newBoardName, setNewBoardName] = useState('')
   const [newBoardDescription, setNewBoardDescription] = useState('')
   const [newBoardCompanyWide, setNewBoardCompanyWide] = useState(false)
-  const [user, setUser] = useState<{ id?: string; role?: string } | null>(null)
+  const { user } = useUser()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [boardToDelete, setBoardToDelete] = useState<TaskBoard | null>(null)
   const [showBoardMenu, setShowBoardMenu] = useState<string | null>(null)
@@ -52,16 +55,9 @@ export default function TasksPage() {
   // Load member count for selected board
   useEffect(() => {
     if (selectedBoard && selectedBoard.company_wide !== 1) {
-      fetch(`/api/tasks/boards/${selectedBoard.id}/permissions`, { credentials: 'include' })
-        .then(res => res.json())
-        .then(data => {
-          const permissions = data.data?.permissions || data.permissions || []
-          setBoardMemberCount(permissions.length)
-        })
-        .catch(err => {
-          console.error('Error loading board members:', err)
-          setBoardMemberCount(0)
-        })
+      apiGet<{ permissions: any[] }>(`/api/tasks/boards/${selectedBoard.id}/permissions`)
+        .then(data => setBoardMemberCount((data.permissions || []).length))
+        .catch(() => setBoardMemberCount(0))
     } else {
       setBoardMemberCount(0)
     }
@@ -69,47 +65,22 @@ export default function TasksPage() {
 
   useEffect(() => {
     loadBoards()
-    loadUser()
   }, [])
-
-  async function loadUser() {
-    try {
-      const res = await fetch('/api/user', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        setUser(response.data?.user || response.user)
-      }
-    } catch (error) {
-      console.error('Error loading user:', error)
-    }
-  }
 
   async function loadBoards() {
     try {
-      const res = await fetch('/api/tasks/boards', { credentials: 'include' })
-      if (res.ok) {
-        const response = await res.json()
-        const boards: TaskBoard[] = response.data?.boards || []
-        setBoards(boards)
-        
-        // Restore last selected board from localStorage if available
-        if (boards.length > 0 && !selectedBoard) {
-          try {
-            const lastSelectedBoardId = localStorage.getItem(LAST_SELECTED_BOARD_KEY)
-            if (lastSelectedBoardId) {
-              const lastBoard = boards.find(b => b.id === lastSelectedBoardId)
-              if (lastBoard) {
-                setSelectedBoard(lastBoard)
-                return // Exit early if we restored a board
-              }
-            }
-          } catch (error) {
-            console.error('Error reading from localStorage:', error)
+      const data = await apiGet<{ boards: TaskBoard[] }>('/api/tasks/boards')
+      const boards = data.boards || []
+      setBoards(boards)
+      if (boards.length > 0 && !selectedBoard) {
+        try {
+          const lastSelectedBoardId = localStorage.getItem(LAST_SELECTED_BOARD_KEY)
+          if (lastSelectedBoardId) {
+            const lastBoard = boards.find(b => b.id === lastSelectedBoardId)
+            if (lastBoard) { setSelectedBoard(lastBoard); return }
           }
-          
-          // Fallback to first board if no saved board found or saved board doesn't exist
-          setSelectedBoard(boards[0])
-        }
+        } catch {}
+        setSelectedBoard(boards[0])
       }
     } catch (error) {
       console.error('Error loading boards:', error)
@@ -126,35 +97,19 @@ export default function TasksPage() {
     }
 
     try {
-      const res = await fetch('/api/tasks/boards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: newBoardName,
-          description: newBoardDescription || null,
-          company_wide: newBoardCompanyWide
-        })
-      })
-
-      if (res.ok) {
-        const response = await res.json()
-        const board = response.data?.board
-        if (board) {
-          setBoards([...boards, board])
-          setSelectedBoard(board)
-          setNewBoardName('')
-          setNewBoardDescription('')
-          setNewBoardCompanyWide(false)
-          setShowCreateBoard(false)
-          toast.success('Board created')
-        } else {
-          throw new Error('Invalid response format')
-        }
-      } else {
-        const errorData = await res.json().catch(() => ({ message: 'Failed to create board' }))
-        throw new Error(errorData.message || 'Failed to create board')
-      }
+      const data = await apiPost<{ board: TaskBoard }>('/api/tasks/boards', {
+        name: newBoardName,
+        description: newBoardDescription || null,
+        company_wide: newBoardCompanyWide
+      }, { defaultErrorMessage: 'Failed to create board' })
+      if (!data.board) throw new Error('Invalid response format')
+      setBoards([...boards, data.board])
+      setSelectedBoard(data.board)
+      setNewBoardName('')
+      setNewBoardDescription('')
+      setNewBoardCompanyWide(false)
+      setShowCreateBoard(false)
+      toast.success('Board created')
     } catch (error) {
       console.error('Error creating board:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to create board')
@@ -165,28 +120,16 @@ export default function TasksPage() {
     if (!boardToDelete) return
 
     try {
-      const res = await fetch(`/api/tasks/boards/${boardToDelete.id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        const updatedBoards = boards.filter(b => b.id !== boardToDelete.id)
-        setBoards(updatedBoards)
-        
-        // If deleted board was selected, select another or clear selection
-        if (selectedBoard?.id === boardToDelete.id) {
-          setSelectedBoard(updatedBoards.length > 0 ? updatedBoards[0] : null)
-        }
-        
-        setShowDeleteConfirm(false)
-        setBoardToDelete(null)
-        setShowBoardMenu(null)
-        toast.success('Board deleted')
-      } else {
-        const errorData = await res.json().catch(() => ({ message: 'Failed to delete board' }))
-        throw new Error(errorData.message || 'Failed to delete board')
+      await apiDelete(`/api/tasks/boards/${boardToDelete.id}`, { defaultErrorMessage: 'Failed to delete board' })
+      const updatedBoards = boards.filter(b => b.id !== boardToDelete.id)
+      setBoards(updatedBoards)
+      if (selectedBoard?.id === boardToDelete.id) {
+        setSelectedBoard(updatedBoards.length > 0 ? updatedBoards[0] : null)
       }
+      setShowDeleteConfirm(false)
+      setBoardToDelete(null)
+      setShowBoardMenu(null)
+      toast.success('Board deleted')
     } catch (error) {
       console.error('Error deleting board:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to delete board')
@@ -199,8 +142,9 @@ export default function TasksPage() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         <Header />
-        <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>
-          Loading...
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+          <LoadingSpinner size={32} />
+          <span style={{ color: 'var(--text-secondary)' }}>Loading...</span>
         </div>
       </div>
     )
@@ -587,15 +531,9 @@ export default function TasksPage() {
             onUpdate={() => {
               loadBoards()
               // Reload member count
-              fetch(`/api/tasks/boards/${selectedBoard.id}/permissions`, { credentials: 'include' })
-                .then(res => res.json())
-                .then(data => {
-                  const permissions = data.data?.permissions || data.permissions || []
-                  setBoardMemberCount(permissions.length)
-                })
-                .catch(err => {
-                  console.error('Error loading board members:', err)
-                })
+              apiGet<{ permissions: any[] }>(`/api/tasks/boards/${selectedBoard.id}/permissions`)
+                .then(data => setBoardMemberCount((data.permissions || []).length))
+                .catch(err => console.error('Error loading board members:', err))
             }}
             showDialog={showMembersDialog}
             onDialogClose={() => setShowMembersDialog(false)}
