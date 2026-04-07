@@ -10,9 +10,13 @@ RUN npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+ARG API_URL=http://localhost:3002
+ENV API_URL=$API_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
+# Ensure public exists (project may not include one)
+RUN mkdir -p /app/public
 
 FROM node:20-alpine AS runner
 WORKDIR /app
