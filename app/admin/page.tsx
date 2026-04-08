@@ -16,7 +16,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [viewUser, setViewUser] = useState<CurrentUser | null>(null)
   const [selectedWeek, setSelectedWeek] = useState(() => startOfWeek(new Date()))
-  const [submittedUsers, setSubmittedUsers] = useState<Set<string>>(new Set())
+  const [submittedUsers, setSubmittedUsers] = useState<Map<string, string>>(new Map())
   const [testingNotifications, setTestingNotifications] = useState(false)
   const [notificationResult, setNotificationResult] = useState<string | null>(null)
   const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<CurrentUser | null>(null)
@@ -37,13 +37,16 @@ export default function AdminPage() {
     try {
       const weekKey = getLocalDateString(selectedWeek)
       const data = await apiGet<{ timesheets: Timesheet[] }>('/api/timesheets/all')
-      const submitted = new Set<string>()
+      const submitted = new Map<string, string>()
       ;(data.timesheets || []).forEach((ts) => {
         const weekStart = ts.week_start_date || ts.weekStartDate
         const userId = ts.user_id || ts.userId
         if (!weekStart || !userId) return
         const tsWeekKey = getLocalDateString(new Date(weekStart))
-        if (tsWeekKey === weekKey) submitted.add(userId)
+        if (tsWeekKey === weekKey) {
+          const subDate = ts.submission_date || ts.submissionDate || ''
+          submitted.set(userId, subDate)
+        }
       })
       setSubmittedUsers(submitted)
     } catch (e) {
@@ -251,6 +254,7 @@ export default function AdminPage() {
               <thead>
                 <tr style={{ background: 'var(--bg-secondary)' }}>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Status</th>
+                  <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Submitted</th>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Name</th>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Email</th>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Role</th>
@@ -261,6 +265,7 @@ export default function AdminPage() {
               <tbody>
                 {users.map(u => {
                   const hasSubmitted = submittedUsers.has(u.id)
+                  const submittedDate = submittedUsers.get(u.id)
                   return (
                     <tr key={u.id}>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
@@ -278,6 +283,9 @@ export default function AdminPage() {
                         }}>
                           {hasSubmitted ? '✓' : '○'} {hasSubmitted ? 'Submitted' : 'Pending'}
                         </div>
+                      </td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: '13px', color: 'var(--muted)' }}>
+                        {submittedDate ? new Date(submittedDate).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                       </td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>{u.name}</td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>{u.email}</td>
