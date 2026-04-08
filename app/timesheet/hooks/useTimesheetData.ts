@@ -380,6 +380,18 @@ export function useTimesheetData({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId])
 
+  /** Reset the form to 4 empty rows per day — call after a week has been cleared. */
+  function resetWeek() {
+    setRowsByDay(
+      Array.from({ length: 7 }, () =>
+        Array.from({ length: 4 }, () =>
+          createEmptyRow(totalSlots, nextRowId.current++)
+        )
+      )
+    )
+    setDayNotes(Array(7).fill(''))
+  }
+
   return {
     rowsByDay,
     setRowsByDay,
@@ -396,5 +408,6 @@ export function useTimesheetData({
     hydrateFromSavedInComponent,
     justSubmittedRef,
     nextRowId,
+    resetWeek,
   }
 }

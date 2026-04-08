@@ -88,6 +88,7 @@ export default function Timeline({ userName }: TimelineProps) {
     serialize,
     justSubmittedRef,
     nextRowId,
+    resetWeek,
   } = data
 
   const interactions = useTimelineInteractions({
