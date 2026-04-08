@@ -339,14 +339,21 @@ export function useTimesheetData({
     setActiveDay(todayIndexForWeek(weekStart))
   }, [totalSlots, weekStart, submittedTimesheetsLoaded, setActiveDay, submittedWeek])
 
-  // Load autosaved on mount (or when currentUserId becomes available)
+  // Load autosaved on mount (or when currentUserId becomes available).
+  // IMPORTANT: only apply the draft if its weekStartDate matches the currently-viewed
+  // week — otherwise the most recent draft for a *different* week would overwrite
+  // the submitted-timesheet data that the main effect already loaded.
   useEffect(() => {
     let cancelled = false
+    const currentWeek = getLocalDateString(weekStart)
     ;(async () => {
       try {
         const data = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
         if (data.timesheet && !cancelled) {
-          hydrateFromSavedInComponent(data.timesheet)
+          const autosavedWeek = weekStartKeyFromApi(data.timesheet.weekStartDate)
+          if (autosavedWeek === currentWeek) {
+            hydrateFromSavedInComponent(data.timesheet)
+          }
           return
         }
       } catch {}
@@ -355,14 +362,21 @@ export function useTimesheetData({
           const raw = localStorage.getItem(
             `timesheet_autosave_${currentUserId}`
           )
-          if (raw) hydrateFromSavedInComponent(JSON.parse(raw))
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            const autosavedWeek = weekStartKeyFromApi(parsed.weekStartDate)
+            if (autosavedWeek === currentWeek) {
+              hydrateFromSavedInComponent(parsed)
+            }
+          }
         } catch {}
       }
     })()
     return () => {
       cancelled = true
     }
-    // hydrateFromSavedInComponent is stable (defined with useCallback) — intentionally omitted
+    // hydrateFromSavedInComponent and weekStart are captured at mount; intentionally omitted
+    // from deps so this runs only once when currentUserId becomes available.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserId])
 
