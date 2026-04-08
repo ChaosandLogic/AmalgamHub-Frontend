@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getLocalDateString } from '../../lib/utils/dateUtils'
+import { getLocalDateString, weekStartKeyFromApi } from '../../lib/utils/dateUtils'
 import { apiGet } from '../../lib/api/client'
 import { base64ToSlots } from '../lib/slotBitmap'
 import {
@@ -162,7 +162,7 @@ export function useTimesheetData({
     try {
       const data = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
       if (data.timesheet) {
-        const autosavedWeek = getLocalDateString(new Date(data.timesheet.weekStartDate))
+        const autosavedWeek = weekStartKeyFromApi(data.timesheet.weekStartDate)
         const currentWeek = getLocalDateString(weekStart)
         if (autosavedWeek === currentWeek) {
           hydrateFromSavedInComponent(data.timesheet)

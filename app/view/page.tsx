@@ -127,7 +127,7 @@ function ViewContent() {
               <strong>Email:</strong> {timesheet.userEmail || timesheet.user_email}
             </div>
             <div>
-              <strong>Week Starting:</strong> {new Date(timesheet.weekStartDate || timesheet.week_start_date).toLocaleDateString()}
+              <strong>Week Starting:</strong> {new Date(timesheet.weekStartDate || timesheet.week_start_date).toLocaleDateString('en-GB')}
             </div>
             <div>
               <strong>Submitted:</strong> {new Date(timesheet.submissionDate || timesheet.submission_date).toLocaleString()}

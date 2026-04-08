@@ -159,7 +159,7 @@ export default function GanttTimelineHeader({ monthStart, totalDays }: GanttTime
                 flexDirection: 'column',
                 justifyContent: 'center'
               }}
-              title={`${date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })}${isTodayDate ? ' (Today)' : ''}`}
+              title={`${date.toLocaleDateString('en-GB')}${isTodayDate ? ' (Today)' : ''}`}
             >
               <div>{DAYS[dayOfWeek].substring(0, 3)}</div>
               <div style={{ fontSize: 10, marginTop: 2 }}>{date.getDate()}</div>

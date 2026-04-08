@@ -459,7 +459,7 @@ export default function ReportsPage() {
               <tbody>
                 {reportData.byWeek.map((week: any, i: number) => (
                   <tr key={i}>
-                    <td style={td}><strong>{new Date(week.weekStart).toLocaleDateString()}</strong></td>
+                    <td style={td}><strong>{new Date(week.weekStart).toLocaleDateString('en-GB')}</strong></td>
                     <td style={td}>{week.totalHours.toFixed(1)}h</td>
                     <td style={td}>{week.standardHours.toFixed(1)}h</td>
                     <td style={td}>{week.overtimeHours.toFixed(1)}h</td>

@@ -44,7 +44,7 @@ export default function SettingsHistory() {
 
   function fmtDate(d: any) {
     try {
-      return new Date(d).toLocaleDateString()
+      return new Date(d).toLocaleDateString('en-GB')
     } catch {
       return 'N/A'
     }

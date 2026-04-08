@@ -138,7 +138,7 @@ function ViewCurrentContent() {
               <strong>Email:</strong> {user?.email || 'Unknown'}
             </div>
             <div>
-              <strong>Week Starting:</strong> {new Date(timesheet.weekStartDate).toLocaleDateString()}
+              <strong>Week Starting:</strong> {new Date(timesheet.weekStartDate).toLocaleDateString('en-GB')}
             </div>
             <div>
               <strong>Last Saved:</strong> {new Date(timesheet.submissionDate).toLocaleString()}

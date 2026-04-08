@@ -52,7 +52,7 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
     if (!dateStr) return ''
     try {
       const date = new Date(dateStr)
-      return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      return date.toLocaleDateString('en-GB')
     } catch {
       return dateStr
     }

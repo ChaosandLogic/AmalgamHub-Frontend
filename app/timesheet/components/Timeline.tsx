@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef } from 'react'
 import { useToast } from '../../components/Toast'
-import { getLocalDateString } from '../../lib/utils/dateUtils'
+import { getLocalDateString, parseLocalDateString, startOfWeek } from '../../lib/utils/dateUtils'
 import {
   DAYS,
   FULL_DAY_SLOTS,
@@ -285,7 +285,9 @@ export default function Timeline({ userName }: TimelineProps) {
             <input
               type="date"
               value={formatDateInput(weekStart)}
-              onChange={e => setWeekStart(new Date((e.target as HTMLInputElement).value))}
+              onChange={e => setWeekStart(startOfWeek(parseLocalDateString((e.target as HTMLInputElement).value)))}
+              min="2000-01-03"
+              step={7}
               style={{ 
                 fontSize: '13px', 
                 padding: '6px 8px', 
@@ -301,7 +303,7 @@ export default function Timeline({ userName }: TimelineProps) {
                   const availableWeeks = Object.keys(submittedTimesheets).sort().reverse()
                   if (availableWeeks.length > 1) {
                     const weekOptions = availableWeeks.map(week => 
-                      `${new Date(week).toLocaleDateString()} (${submittedTimesheets[week].summary?.totalHours?.toFixed(1) || '0'}h)`
+                      `${new Date(week).toLocaleDateString('en-GB')} (${submittedTimesheets[week].summary?.totalHours?.toFixed(1) || '0'}h)`
                     ).join('\n')
                     toast.info(`Available submitted weeks:\n${weekOptions}\n\nNavigating to the most recent week.`)
                     if (availableWeeks.length > 0) {
@@ -684,7 +686,7 @@ export default function Timeline({ userName }: TimelineProps) {
         message={
           <>
             Are you sure you want to submit this timesheet for the week commencing{' '}
-            <strong>{weekStart.toLocaleDateString()}</strong>?
+            <strong>{weekStart.toLocaleDateString('en-GB')}</strong>?
             <br />
             <br />
             <span style={{ fontWeight: 600 }}>Summary</span>

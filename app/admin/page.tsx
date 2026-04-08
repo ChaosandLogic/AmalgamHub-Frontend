@@ -4,7 +4,7 @@ import Header from '../components/Header'
 import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { startOfWeek, getLocalDateString } from '../lib/utils/dateUtils'
+import { startOfWeek, getLocalDateString, parseLocalDateString } from '../lib/utils/dateUtils'
 import { apiGet, apiPost, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
 import type { CurrentUser } from '../lib/types/user'
 import type { Timesheet } from '../lib/types/timesheet'
@@ -120,9 +120,11 @@ export default function AdminPage() {
               type="date"
               value={getLocalDateString(selectedWeek)}
               onChange={(e) => {
-                const newDate = new Date(e.target.value)
+                const newDate = parseLocalDateString(e.target.value)
                 setSelectedWeek(startOfWeek(newDate))
               }}
+              min="2000-01-03"
+              step={7}
               style={{
                 padding: '6px 10px',
                 border: '1px solid var(--border)',
@@ -404,10 +406,10 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
             {autosaved && (
               <div style={{ display: 'grid', gap: 6 }}>
                 <div className="muted">
-                  Week starting: {autosaved.weekStartDate || autosaved.week_start_date ? new Date(autosaved.weekStartDate || autosaved.week_start_date || '').toLocaleDateString() : '—'}
+                  Week starting: {autosaved.weekStartDate || autosaved.week_start_date ? new Date(autosaved.weekStartDate || autosaved.week_start_date || '').toLocaleDateString('en-GB') : '—'}
                 </div>
                 <div className="muted">
-                  Last saved: {autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at ? new Date(autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at || '').toLocaleString() : '—'}
+                  Last saved: {autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at ? new Date(autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at || '').toLocaleString('en-GB') : '—'}
                 </div>
                 <div className="muted">Jobs: {Object.keys(autosaved.summary?.jobs || {}).length}</div>
                 <div style={{ marginTop: 8 }}>
@@ -489,8 +491,8 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
                         style={{ cursor: 'pointer' }}
                       />
                     </td>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.weekStartDate || ts.week_start_date ? new Date(ts.weekStartDate || ts.week_start_date || '').toLocaleDateString() : '—'}</td>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.submissionDate || ts.submission_date || ts.submitted_at ? new Date(ts.submissionDate || ts.submission_date || ts.submitted_at || '').toLocaleString() : '—'}</td>
+                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.weekStartDate || ts.week_start_date ? new Date(ts.weekStartDate || ts.week_start_date || '').toLocaleDateString('en-GB') : '—'}</td>
+                    <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.submissionDate || ts.submission_date || ts.submitted_at ? new Date(ts.submissionDate || ts.submission_date || ts.submitted_at || '').toLocaleString('en-GB') : '—'}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{(ts.summary?.totalHours || ts.summary?.total || 0).toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>
                       <button 

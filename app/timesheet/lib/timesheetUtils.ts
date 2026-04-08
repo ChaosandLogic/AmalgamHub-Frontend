@@ -97,7 +97,7 @@ export function addDays(date: Date, days: number): Date {
 
 export function formatDayLabel(weekStart: Date, index: number): string {
   const dt = addDays(startOfWeek(weekStart), index)
-  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return dt.toLocaleDateString('en-GB')
 }
 
 // --- Summary & overlaps ---
@@ -310,7 +310,8 @@ export function serializeTimesheet(
 
   return {
     name: userName || 'User',
-    weekStartDate: weekStart.toISOString(),
+    // Calendar week start in local timezone — never use toISOString() here (UTC shifts the day)
+    weekStartDate: getLocalDateString(normalizeToMidnight(weekStart)),
     days,
     dayNotes,
     summary,

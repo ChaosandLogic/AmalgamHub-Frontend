@@ -217,13 +217,13 @@ export default function ProjectsPage() {
           if (day && month && year) {
             const parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
             if (!isNaN(parsedDate.getTime())) {
-              return parsedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              return parsedDate.toLocaleDateString('en-GB')
             }
           }
         }
         return dateStr // Return original if can't parse
       }
-      return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      return date.toLocaleDateString('en-GB')
     } catch {
       return dateStr || ''
     }
@@ -452,20 +452,6 @@ export default function ProjectsPage() {
                       </div>
                       {(user?.role === 'admin' || user?.role === 'booker') && (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => openEditDialog(project)}
-                            style={{
-                              padding: '4px 10px',
-                              border: '1px solid var(--border)',
-                              borderRadius: 6,
-                              background: 'var(--surface)',
-                              color: 'var(--text-primary)',
-                              cursor: 'pointer',
-                              fontSize: 12
-                            }}
-                          >
-                            Edit
-                          </button>
                           {/* Only show delete button for projects created in the app (not from FileMaker) */}
                           {project.id && String(project.id).startsWith('project-') && (
                             <button

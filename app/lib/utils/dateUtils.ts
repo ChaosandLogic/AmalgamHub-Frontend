@@ -39,6 +39,16 @@ export function parseLocalDateString(dateStr: string): Date {
   return date
 }
 
+/** YYYY-MM-DD from API / DB — avoids `new Date("YYYY-MM-DD")` UTC parsing shifts */
+export function weekStartKeyFromApi(raw: unknown): string {
+  if (raw == null) return ''
+  const s = String(raw).trim()
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(s)
+  if (m) return m[1]
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? '' : getLocalDateString(d)
+}
+
 /**
  * Normalize a date to midnight in local timezone
  */

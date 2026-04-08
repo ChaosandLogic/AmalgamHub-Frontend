@@ -66,7 +66,7 @@ export default function GanttTaskRow({
               position: 'relative',
               zIndex: 1
             }}
-            title={`${date.toLocaleDateString()}${isTodayDate ? ' (Today)' : ''}`}
+            title={`${date.toLocaleDateString('en-GB')}${isTodayDate ? ' (Today)' : ''}`}
           />
         )
       })}

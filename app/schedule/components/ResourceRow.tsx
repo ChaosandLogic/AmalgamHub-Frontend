@@ -104,7 +104,7 @@ export default function ResourceRow({
               position: 'relative',
               zIndex: 1
             }}
-            title={`${DAYS[dayOfWeek]}, ${date.toLocaleDateString()}${isTodayDate ? ' (Today)' : ''}${isUnavailable ? ' — Not available' : ''}`}
+            title={`${DAYS[dayOfWeek]}, ${date.toLocaleDateString('en-GB')}${isTodayDate ? ' (Today)' : ''}${isUnavailable ? ' — Not available' : ''}`}
           />
         )
       })}

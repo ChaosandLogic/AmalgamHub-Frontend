@@ -23,7 +23,7 @@ export default function HistoryPage() {
     }
   }
 
-  function fmtDate(d: any) { try { return new Date(d).toLocaleDateString() } catch { return 'N/A' } }
+  function fmtDate(d: any) { try { return new Date(d).toLocaleDateString('en-GB') } catch { return 'N/A' } }
   function fmtDateTime(d: any) { try { return new Date(d).toLocaleString() } catch { return 'N/A' } }
   function total(ts: any) {
     if (typeof ts?.totalHours === 'number') return ts.totalHours

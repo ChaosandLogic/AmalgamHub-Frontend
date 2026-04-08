@@ -270,12 +270,12 @@ function BookingRenderer({
             } - ${getDateForDay(
               monthStart,
               startDayIndex
-            ).toLocaleDateString()}${
+            ).toLocaleDateString('en-GB')}${
               spanDays > 1
                 ? ` to ${getDateForDay(
                     monthStart,
                     endDayIndex
-                  ).toLocaleDateString()}`
+                  ).toLocaleDateString('en-GB')}`
                 : ''
             }`}
           >

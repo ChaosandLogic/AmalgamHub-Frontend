@@ -90,9 +90,9 @@ function GanttBarRenderer({
         onEditTask?.(task)
       }}
       onMouseDown={e => onMouseDownTask(task, e)}
-      title={`${task.title} - ${getDateForDay(monthStart, startDayIndex).toLocaleDateString()}${
+      title={`${task.title} - ${getDateForDay(monthStart, startDayIndex).toLocaleDateString('en-GB')}${
         spanDays > 1
-          ? ` to ${getDateForDay(monthStart, endDayIndex).toLocaleDateString()}`
+          ? ` to ${getDateForDay(monthStart, endDayIndex).toLocaleDateString('en-GB')}`
           : ''
       }${percentComplete > 0 ? ` (${percentComplete}% complete)` : ''}`}
     >

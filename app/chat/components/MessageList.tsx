@@ -72,7 +72,7 @@ export default function MessageList({
     yesterday.setDate(yesterday.getDate() - 1)
     if (messageDate.toDateString() === today.toDateString()) return 'Today'
     if (messageDate.toDateString() === yesterday.toDateString()) return 'Yesterday'
-    return messageDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    return messageDate.toLocaleDateString('en-GB')
   }
 
   const parseMessageContent = useCallback((content: string): MessagePart[] => {

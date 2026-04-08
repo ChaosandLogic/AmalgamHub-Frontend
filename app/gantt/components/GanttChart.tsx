@@ -545,8 +545,8 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
           <div style={{ overflowY: 'auto', flex: 1, margin: 0, padding: 0 }}>
             {tasks.map((task, idx) => {
               const assignee = users.find(u => u.id === task.assignee_id)
-              const startDate = task.start_date ? new Date(task.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-              const endDate = task.end_date ? new Date(task.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+              const startDate = task.start_date ? new Date(task.start_date).toLocaleDateString('en-GB') : ''
+              const endDate = task.end_date ? new Date(task.end_date).toLocaleDateString('en-GB') : ''
               
               const isEditingTitle = editingTitleId === task.id
               
