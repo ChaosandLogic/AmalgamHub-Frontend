@@ -207,6 +207,11 @@ export function useTimesheetData({
           () => []
         )
         const daysData = timesheet.days || timesheet.data?.days
+        // Some API payloads can include summary-only submitted records without day rows.
+        // In that case, keep the current UI rows instead of replacing with empty rows.
+        if (!Array.isArray(daysData)) {
+          return
+        }
 
         daysData?.forEach((dayData: any[], dayIndex: number) => {
           dayData.forEach((job: any) => {
