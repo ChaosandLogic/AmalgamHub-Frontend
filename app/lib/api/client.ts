@@ -108,12 +108,14 @@ export async function apiPut<T = unknown>(
 /**
  * DELETE. On non-ok, throws with message from body or defaultMessage.
  */
-export async function apiDelete(
+export async function apiDelete<T = void>(
   path: string,
   options?: { defaultErrorMessage?: string }
-): Promise<void> {
+): Promise<T> {
   const res = await request(path, { method: 'DELETE' })
   if (!res.ok) await handleErrorResponse(res, options?.defaultErrorMessage)
+  const json = await parseJson(res)
+  return (json?.data !== undefined ? json.data : json) as T
 }
 
 /**

@@ -109,7 +109,7 @@ export default function AdminPage() {
       const weekKey = getLocalDateString(selectedWeek)
       const data = await apiDelete<{ deleted: number }>(`/api/timesheets/admin/clear?weekDate=${weekKey}`)
       await loadSubmissionStatus()
-      toast.success(`Cleared ${(data as any).deleted ?? 0} record(s) for week ${weekKey}`)
+      toast.success(`Cleared ${data.deleted ?? 0} record(s) for week ${weekKey}`)
     } catch (e: unknown) {
       toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to clear week')
     } finally {
