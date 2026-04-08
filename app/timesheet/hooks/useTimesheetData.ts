@@ -47,6 +47,7 @@ export function useTimesheetData({
 
   const nextRowId = useRef(0)
   const justSubmittedRef = useRef(false)
+  const submittedTimesheetsRef = useRef(submittedTimesheets)
 
   function createEmptyRow(total: number, id: number): RowData {
     return {
@@ -182,6 +183,8 @@ export function useTimesheetData({
     )
     setDayNotes(Array(7).fill(''))
   }
+
+  useEffect(() => { submittedTimesheetsRef.current = submittedTimesheets }, [submittedTimesheets])
 
   // When week or submitted list changes: load submitted data or autosaved
   useEffect(() => {
@@ -343,13 +346,17 @@ export function useTimesheetData({
   // IMPORTANT: only apply the draft if its weekStartDate matches the currently-viewed
   // week — otherwise the most recent draft for a *different* week would overwrite
   // the submitted-timesheet data that the main effect already loaded.
+  // Uses submittedTimesheetsRef to avoid overwriting submitted data with stale
+  // localStorage/draft data when the main effect has already loaded for the week.
   useEffect(() => {
     let cancelled = false
     const currentWeek = getLocalDateString(weekStart)
     ;(async () => {
       try {
         const data = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
-        if (data.timesheet && !cancelled) {
+        if (cancelled) return
+        if (submittedTimesheetsRef.current[currentWeek]) return
+        if (data.timesheet) {
           const autosavedWeek = weekStartKeyFromApi(data.timesheet.weekStartDate)
           if (autosavedWeek === currentWeek) {
             hydrateFromSavedInComponent(data.timesheet)
@@ -358,6 +365,7 @@ export function useTimesheetData({
         }
       } catch {}
       if (currentUserId && !cancelled) {
+        if (submittedTimesheetsRef.current[currentWeek]) return
         try {
           const raw = localStorage.getItem(
             `timesheet_autosave_${currentUserId}`
