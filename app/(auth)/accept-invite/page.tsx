@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '../../components/Toast'
 import AuthForm, { authFormStyles } from '../../components/AuthForm/AuthForm'
 import { apiGet, apiPost } from '../../lib/api/client'
 
-export default function AcceptInvitePage() {
+function AcceptInviteForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const toast = useToast()
@@ -122,5 +122,17 @@ export default function AcceptInvitePage() {
         />
       </label>
     </AuthForm>
+  )
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <p>Loading…</p>
+      </div>
+    }>
+      <AcceptInviteForm />
+    </Suspense>
   )
 }
