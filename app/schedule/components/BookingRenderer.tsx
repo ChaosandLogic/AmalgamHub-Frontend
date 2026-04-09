@@ -240,7 +240,7 @@ function BookingRenderer({
               borderRadius: 6,
               padding: '2px 6px',
               fontSize: '11px',
-              color: 'white',
+              color: isTimeOff ? 'white' : '#333',
               cursor: 'move',
               overflow: 'hidden',
               display: 'flex',
@@ -405,14 +405,14 @@ function BookingRenderer({
               borderRadius: 6,
               padding: '2px 6px',
               fontSize: '11px',
-              color: 'white',
+              color: isTimeOff ? 'white' : '#333',
               cursor: 'move',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
               gap: '1px',
-              opacity: 0.7 // Slightly transparent to indicate it's a preview
+              opacity: 0.7
             }}
             title={`${booking.title} (duplicate preview)`}
           >
