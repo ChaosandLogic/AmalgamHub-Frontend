@@ -15,7 +15,7 @@ import TimelineHeader from './TimelineHeader'
 import ResourceRow from './ResourceRow'
 import BookingDialog from './BookingDialog'
 
-export default function ResourceSchedule({ monthStart, resources, projects, currentUser: currentUserProp }: ResourceScheduleProps) {
+export default function ResourceSchedule({ monthStart, resources, projects, currentUser: currentUserProp, colorMode = 'priority' }: ResourceScheduleProps) {
   const toast = useToast()
   const leftColumnRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
@@ -50,6 +50,19 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
     })
     return map
   }, [projects])
+
+  // Map each PM user id → their linked resource color
+  const pmColorMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    const resourceColorById: Record<string, string> = {}
+    resources.forEach((r: any) => { if (r.color) resourceColorById[r.id] = r.color })
+    users.forEach((u: any) => {
+      if (u.resource_id && resourceColorById[u.resource_id]) {
+        map[u.id] = resourceColorById[u.resource_id]
+      }
+    })
+    return map
+  }, [users, resources])
 
   // Get unique departments from person resources
   const availableDepartments = useMemo(() => {
@@ -1076,6 +1089,8 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
                   }}
                   projectsById={projectsById}
                   canEdit={user?.role === 'admin' || user?.role === 'booker'}
+                  colorMode={colorMode}
+                  pmColorMap={pmColorMap}
             />
           ))}
             </div>

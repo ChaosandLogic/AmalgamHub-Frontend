@@ -18,6 +18,8 @@ interface ResourceRowProps {
   onEditBooking?: (booking: any) => void
   projectsById?: Record<string, any>
   canEdit?: boolean
+  colorMode?: 'priority' | 'pm'
+  pmColorMap?: Record<string, string>
 }
 
 export default function ResourceRow({
@@ -31,7 +33,9 @@ export default function ResourceRow({
   dragPreview,
   onEditBooking,
   projectsById,
-  canEdit = true
+  canEdit = true,
+  colorMode = 'priority',
+  pmColorMap
 }: ResourceRowProps) {
   const days = useMemo(() => Array.from({ length: totalDays }, (_, i) => i), [totalDays])
   
@@ -119,6 +123,8 @@ export default function ResourceRow({
         laneInfo={laneInfo}
         resourceId={resource.id}
         projectsById={projectsById}
+        colorMode={colorMode}
+        pmColorMap={pmColorMap}
       />
     </div>
   )

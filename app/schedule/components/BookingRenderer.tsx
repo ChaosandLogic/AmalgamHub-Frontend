@@ -4,6 +4,10 @@ import { getPriorityColor } from '../../lib/utils/priorityUtils'
 import { EDGE_THRESHOLD, ROW_HEIGHT } from '../../lib/constants/schedule'
 import { calculateBookingLanes } from '../utils/calculateBookingLanes'
 
+function pastelise(color: string): string {
+  return `color-mix(in srgb, ${color} 75%, white)`
+}
+
 interface BookingRendererProps {
   bookingsByDay: Record<number, any[]>
   monthStart: Date
@@ -13,8 +17,10 @@ interface BookingRendererProps {
   dragPreview: Record<string, { startDayIndex: number, endDayIndex: number, resourceId?: string, booking?: any }>
   onEditBooking?: (booking: any) => void
   laneInfo?: { bookingLanes: Map<string, number>, totalLanes: number }
-  resourceId?: string // Current resource ID for this row
+  resourceId?: string
   projectsById?: Record<string, any>
+  colorMode?: 'priority' | 'pm'
+  pmColorMap?: Record<string, string>
 }
 
 function BookingRenderer({
@@ -27,7 +33,9 @@ function BookingRenderer({
   onEditBooking,
   laneInfo,
   resourceId,
-  projectsById
+  projectsById,
+  colorMode = 'priority',
+  pmColorMap
 }: BookingRendererProps) {
   // Collect all unique bookings (deduplicate by ID since multi-day bookings appear in multiple days)
   const allBookings = useMemo(() => {
@@ -161,15 +169,16 @@ function BookingRenderer({
         let background: string
         let border: string
         if (isTimeOff) {
-          // Use dedicated time-off color (grey) - distinct from weekend background
-          // If booking.color is set and is a valid color, use it; otherwise use default time-off color
           const timeOffColor = booking.color && booking.color !== 'var(--text-secondary)' 
             ? booking.color 
             : 'var(--timeoff-bg)'
           background = timeOffColor
           border = timeOffColor
+        } else if (colorMode === 'pm' && booking.project_manager_id && pmColorMap?.[booking.project_manager_id]) {
+          const pmColor = pmColorMap[booking.project_manager_id]
+          background = pastelise(pmColor)
+          border = pmColor
         } else {
-          // Use priority-based color (traffic light system) for normal bookings
           const priorityColors = getPriorityColor(priority)
           background = priorityColors.background
           border = priorityColors.border
@@ -331,12 +340,15 @@ function BookingRenderer({
         let background: string
         let border: string
         if (isTimeOff) {
-          // Use dedicated time-off color (grey) - distinct from weekend background
           const timeOffColor = booking.color && booking.color !== 'var(--text-secondary)' 
             ? booking.color 
             : 'var(--timeoff-bg)'
           background = timeOffColor
           border = timeOffColor
+        } else if (colorMode === 'pm' && booking.project_manager_id && pmColorMap?.[booking.project_manager_id]) {
+          const pmColor = pmColorMap[booking.project_manager_id]
+          background = pastelise(pmColor)
+          border = pmColor
         } else {
           const priorityColors = getPriorityColor(priority)
           background = priorityColors.background

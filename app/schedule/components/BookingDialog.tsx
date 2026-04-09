@@ -94,17 +94,38 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
     if (activeTab !== 'booking' || !selectedProject) return
     const fmName = (String(selectedProject.project_manager || '').trim() || String(selectedProject.account_manager || '').trim())
     if (!fmName) return
-    const fmLower = fmName.toLowerCase()
+    const fmNorm = fmName.toLowerCase().replace(/\./g, '').trim()
     const userList = (users || []).filter(
       (u: any) => (u?.job_role ?? '').toString().trim().toLowerCase() !== 'maker'
     )
-    const exactMatch = userList.find(
-      (u: any) => (u?.name ?? '').toString().trim().toLowerCase() === fmLower
-    )
-    const match = exactMatch ?? userList.find(
-      (u: any) => (u?.name ?? '').toString().trim().toLowerCase().startsWith(fmLower)
-    )
-    setProjectManagerId(match?.id ?? '')
+    const normName = (u: any) => (u?.name ?? '').toString().trim().toLowerCase().replace(/\./g, '')
+
+    // 1. Exact match (ignoring periods)
+    const exactMatch = userList.find((u: any) => normName(u) === fmNorm)
+
+    // 2. startsWith: "john smith" starts with "john s"
+    const startsMatch = !exactMatch
+      ? userList.find((u: any) => normName(u).startsWith(fmNorm))
+      : undefined
+
+    // 3. First name + initial: FM "John S" matches user "John Smith"
+    let initialMatch: any
+    if (!exactMatch && !startsMatch) {
+      const fmParts = fmNorm.split(/\s+/)
+      if (fmParts.length >= 2) {
+        const fmFirst = fmParts[0]
+        const fmInitial = fmParts[fmParts.length - 1]
+        if (fmInitial.length === 1) {
+          initialMatch = userList.find((u: any) => {
+            const parts = normName(u).split(/\s+/)
+            if (parts.length < 2) return false
+            return parts[0] === fmFirst && parts[parts.length - 1].startsWith(fmInitial)
+          })
+        }
+      }
+    }
+
+    setProjectManagerId(exactMatch?.id ?? startsMatch?.id ?? initialMatch?.id ?? '')
   }, [projectId, selectedProject?.project_manager, selectedProject?.account_manager, activeTab, users])
   
   // Searchable project list: filter then group by company (sub-summary header)

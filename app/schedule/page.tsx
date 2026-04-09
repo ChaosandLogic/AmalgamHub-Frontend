@@ -17,6 +17,18 @@ export default function SchedulePage() {
     const firstDay = new Date(date.getFullYear(), date.getMonth(), 1)
     return normalizeToMidnight(firstDay)
   })
+  const [colorMode, setColorMode] = useState<'priority' | 'pm'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('schedule-color-mode')
+      if (saved === 'pm') return 'pm'
+    }
+    return 'priority'
+  })
+
+  function handleColorModeChange(mode: 'priority' | 'pm') {
+    setColorMode(mode)
+    localStorage.setItem('schedule-color-mode', mode)
+  }
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -122,6 +134,21 @@ export default function SchedulePage() {
               fontSize: 14
             }}
           />
+          <select
+            value={colorMode}
+            onChange={e => handleColorModeChange(e.target.value as 'priority' | 'pm')}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              fontSize: 14,
+              background: 'var(--surface)',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="priority">Colour by Priority</option>
+            <option value="pm">Colour by Project Manager</option>
+          </select>
           {(user?.role === 'admin' || user?.role === 'booker') && (
             <>
               <button
@@ -206,6 +233,7 @@ export default function SchedulePage() {
             resources={resources}
             projects={projects}
             currentUser={user}
+            colorMode={colorMode}
           />
         </div>
       )}
