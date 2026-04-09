@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { DEFAULT_DASHBOARD_ROUTE } from './app/lib/constants/routes'
 
-const PUBLIC_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/'])
+const PUBLIC_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/accept-invite', '/'])
 const ADMIN_PATHS = new Set(['/admin'])
 const BLOCKED_PATHS = new Set(['/reports'])
 

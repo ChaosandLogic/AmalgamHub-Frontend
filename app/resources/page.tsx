@@ -39,10 +39,13 @@ export default function ResourcesPage() {
   const [departments, setDepartments] = useState<string[]>([])
   const [jobRoles, setJobRoles] = useState<string[]>([])
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<any>(null)
+  const [linkedResourceIds, setLinkedResourceIds] = useState<Set<string>>(new Set())
+  const [invitingId, setInvitingId] = useState<string | null>(null)
 
   useEffect(() => {
     loadResources()
     loadValueLists()
+    loadLinkedResources()
   }, [])
 
   async function loadValueLists() {
@@ -68,6 +71,29 @@ export default function ResourcesPage() {
       setResources(data.resources || [])
     } catch (error) {
       console.error('Error loading resources:', error)
+    }
+  }
+
+  async function loadLinkedResources() {
+    try {
+      const data = await apiGet<{ users: any[] }>('/api/users')
+      const ids = new Set<string>()
+      ;(data.users || []).forEach((u: any) => { if (u.resource_id) ids.add(u.resource_id) })
+      setLinkedResourceIds(ids)
+    } catch {
+      // non-admin users may not have access to /api/users
+    }
+  }
+
+  async function sendInvite(resource: any) {
+    setInvitingId(resource.id)
+    try {
+      await apiPost(`/api/resources/${resource.id}/invite`, {})
+      toast.success(`Invitation sent to ${resource.email}`)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to send invitation')
+    } finally {
+      setInvitingId(null)
     }
   }
 
@@ -356,6 +382,41 @@ export default function ResourcesPage() {
                     Delete
                   </button>
                 </div>
+              )}
+              {(user?.role === 'admin' || user?.role === 'booker') &&
+                resource.type === 'person' && resource.email && !linkedResourceIds.has(resource.id) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    sendInvite(resource)
+                  }}
+                  disabled={invitingId === resource.id}
+                  style={{
+                    width: '100%',
+                    padding: '6px 12px',
+                    border: '1px solid var(--accent-primary)',
+                    borderRadius: 6,
+                    background: 'var(--surface)',
+                    color: 'var(--accent-primary)',
+                    cursor: invitingId === resource.id ? 'wait' : 'pointer',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    transition: 'all 0.2s',
+                    opacity: invitingId === resource.id ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (invitingId !== resource.id) {
+                      e.currentTarget.style.background = 'var(--accent-primary)'
+                      e.currentTarget.style.color = 'white'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--surface)'
+                    e.currentTarget.style.color = 'var(--accent-primary)'
+                  }}
+                >
+                  {invitingId === resource.id ? 'Sending…' : 'Invite'}
+                </button>
               )}
             </div>
           ))}
