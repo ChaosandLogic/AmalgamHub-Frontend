@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Header from '../components/Header'
 import { useToast } from '../components/Toast'
@@ -56,6 +56,45 @@ function ChatPageContent() {
 
   const currentUserId = currentUser?.id ?? null
   const userRole = (currentUser as any)?.role ?? null
+
+  // Project search (create-channel dialog)
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false)
+  const [projectSearch, setProjectSearch] = useState('')
+  const projectDropdownRef = useRef<HTMLDivElement>(null)
+  const projectSearchLower = projectSearch.trim().toLowerCase()
+
+  const filteredProjects = useMemo(() => {
+    if (!projectSearchLower) return projects
+    return projects.filter((p: any) => {
+      const name = (p?.name ?? '').toLowerCase()
+      const code = (p?.code ?? '').toLowerCase()
+      const client = (p?.client_name ?? p?.clientName ?? '').toLowerCase()
+      return name.includes(projectSearchLower) || code.includes(projectSearchLower) || client.includes(projectSearchLower)
+    })
+  }, [projects, projectSearchLower])
+
+  const projectsByCompany = useMemo(() => {
+    const map = new Map<string, any[]>()
+    filteredProjects.forEach((p: any) => {
+      const key = (p?.client_name ?? p?.clientName ?? '') || 'No company'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(p)
+    })
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [filteredProjects])
+
+  const selectedProject = projects.find((p: any) => p.id === newChannelData.projectId)
+
+  useEffect(() => {
+    if (!projectDropdownOpen) return
+    const handle = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setProjectDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [projectDropdownOpen])
 
   // Keep ref in sync with state for socket event handlers
   useEffect(() => {
@@ -210,6 +249,8 @@ function ChatPageContent() {
         if (socket) socket.emit('join_channels')
       }
       setNewChannelData({ name: '', type: 'team', projectId: '', department: '', selectedUserIds: [] })
+      setProjectSearch('')
+      setProjectDropdownOpen(false)
       setShowCreateChannelDialog(false)
       toast.success('Channel created successfully')
     } catch (err: unknown) {
@@ -411,7 +452,7 @@ function ChatPageContent() {
       {showCreateChannelDialog && (
         <div
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--modal-backdrop)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={() => setShowCreateChannelDialog(false)}
+          onClick={() => { setShowCreateChannelDialog(false); setProjectSearch(''); setProjectDropdownOpen(false) }}
         >
           <div
             style={{ background: 'var(--surface)', borderRadius: 12, padding: 24, width: '90%', maxWidth: 500, boxShadow: '0 8px 32px var(--shadow-2xl)' }}
@@ -444,20 +485,95 @@ function ChatPageContent() {
               </div>
 
               {newChannelData.type === 'project' && (
-                <div>
+                <div ref={projectDropdownRef}>
                   <label style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 500 }}>Project *</label>
-                  <select
-                    value={newChannelData.projectId}
-                    onChange={(e) => setNewChannelData({ ...newChannelData, projectId: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 14, background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                  <div
+                    role="combobox"
+                    aria-expanded={projectDropdownOpen}
+                    aria-haspopup="listbox"
+                    onClick={() => setProjectDropdownOpen(prev => !prev)}
+                    style={{
+                      width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 14,
+                      background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer',
+                      minHeight: 38, display: 'flex', alignItems: 'center'
+                    }}
                   >
-                    <option value="">Select a project...</option>
-                    {projects.map(project => (
-                      <option key={project.id} value={project.id}>
-                        {project.code ? `${project.code} - ` : ''}{project.name}
-                      </option>
-                    ))}
-                  </select>
+                    {selectedProject ? (
+                      <span>
+                        {selectedProject.code ? <span style={{ fontWeight: 600 }}>{selectedProject.code} — </span> : null}
+                        <span style={{ fontWeight: 500 }}>{selectedProject.name}</span>
+                        {(selectedProject.client_name || selectedProject.clientName) && (
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginLeft: 6 }}>
+                            — {selectedProject.client_name || selectedProject.clientName}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-secondary)' }}>Select a project...</span>
+                    )}
+                  </div>
+                  {projectDropdownOpen && (
+                    <div
+                      role="listbox"
+                      style={{
+                        marginTop: 4, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)',
+                        boxShadow: '0 4px 12px var(--shadow-lg)', maxHeight: 280, overflow: 'hidden',
+                        display: 'flex', flexDirection: 'column'
+                      }}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Search by job number, name or company..."
+                        value={projectSearch}
+                        onChange={e => setProjectSearch(e.target.value)}
+                        onKeyDown={e => e.stopPropagation()}
+                        autoFocus
+                        style={{
+                          margin: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6,
+                          fontSize: 13, background: 'var(--bg-primary)', color: 'var(--text-primary)'
+                        }}
+                      />
+                      <div style={{ overflow: 'auto', flex: 1, paddingBottom: 8 }}>
+                        {projectsByCompany.map(([company, projs]) => (
+                          <div key={company}>
+                            <div style={{
+                              padding: '6px 12px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+                              letterSpacing: '0.05em', color: 'var(--text-secondary)', background: 'var(--border)',
+                              position: 'sticky', top: 0, zIndex: 1
+                            }}>
+                              {company}
+                            </div>
+                            {projs.map((p: any) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                role="option"
+                                aria-selected={newChannelData.projectId === p.id}
+                                onClick={() => {
+                                  setNewChannelData({ ...newChannelData, projectId: p.id })
+                                  setProjectDropdownOpen(false)
+                                  setProjectSearch('')
+                                }}
+                                style={{
+                                  width: '100%', padding: '8px 12px 8px 20px', border: 'none',
+                                  background: newChannelData.projectId === p.id ? 'var(--accent-primary-light)' : 'transparent',
+                                  color: 'var(--text-primary)', fontSize: 13, textAlign: 'left', cursor: 'pointer'
+                                }}
+                              >
+                                {p.code ? <span style={{ fontWeight: 600, marginRight: 6 }}>{p.code}</span> : null}
+                                {p.name}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                        {filteredProjects.length === 0 && (
+                          <div style={{ padding: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
+                            No projects match &quot;{projectSearch}&quot;
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -514,7 +630,7 @@ function ChatPageContent() {
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
                 <button
-                  onClick={() => { setShowCreateChannelDialog(false); setNewChannelData({ name: '', type: 'team', projectId: '', department: '', selectedUserIds: [] }) }}
+                  onClick={() => { setShowCreateChannelDialog(false); setNewChannelData({ name: '', type: 'team', projectId: '', department: '', selectedUserIds: [] }); setProjectSearch(''); setProjectDropdownOpen(false) }}
                   style={{ padding: '10px 20px', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 500 }}
                 >Cancel</button>
                 <button
