@@ -6,6 +6,7 @@ import type { ChatChannel, ChatMessage, ChatUser } from '../../lib/types/chat'
 import type { Project, Resource } from '../../lib/types/schedule'
 import { TYPING_TIMEOUT_MS } from '../../lib/constants/ui'
 import { getSocketApiUrl } from '../../lib/utils/socketUrl'
+import { getDefaultSocketIoOptions } from '../../lib/utils/socketIoOptions'
 import { apiGet, apiPost } from '../../lib/api/client'
 
 interface UseChatSocketOptions {
@@ -139,14 +140,7 @@ export function useChatSocket({ currentUser, userLoading, searchParams, activeCh
 
       const apiUrl = getSocketApiUrl()
       const newSocket = io(apiUrl, {
-        withCredentials: true,
-        transports: ['websocket', 'polling'],
-        path: '/socket.io',
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
-        timeout: 10000
+        ...getDefaultSocketIoOptions(),
       })
 
       currentSocket = newSocket
@@ -164,6 +158,8 @@ export function useChatSocket({ currentUser, userLoading, searchParams, activeCh
           setError(`Connection blocked by CORS. Server needs to allow origin: ${window.location.origin}`)
         } else if (err.message?.includes('timeout')) {
           setError('Connection timeout. Check if the server is accessible.')
+        } else if (err.message?.includes('xhr poll')) {
+          setError('Chat connection failed (socket proxy). Restart the dev server and ensure the API is running.')
         } else if (err.message?.includes('ECONNREFUSED')) {
           setError('Cannot connect to server. Please check if the backend is running.')
         } else {

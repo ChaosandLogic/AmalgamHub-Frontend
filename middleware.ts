@@ -12,7 +12,14 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/_next') || pathname.startsWith('/assets') || pathname.startsWith('/uploads')) {
     return NextResponse.next()
   }
-  
+
+  // Socket.io is rewritten to Express; JWT is checked in socket/index.js.
+  // Do not run /api/user verification here — on failure the catch redirects to
+  // /login (HTML) and breaks Engine.IO polling with "xhr poll error".
+  if (pathname.startsWith('/socket.io')) {
+    return NextResponse.next()
+  }
+
   // Allow public paths without authentication
   if (PUBLIC_PATHS.has(pathname)) {
     return NextResponse.next()

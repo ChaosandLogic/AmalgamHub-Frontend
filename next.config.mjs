@@ -17,6 +17,12 @@ const nextConfig = {
         source: '/uploads/:path*',
         destination: `${apiUrl}/uploads/:path*`,
       },
+      // Socket.io must reach the Express server (same as /api). Without this, the client
+      // uses window.location.origin and times out on the Next dev port.
+      {
+        source: '/socket.io/:path*',
+        destination: `${apiUrl}/socket.io/:path*`,
+      },
     ]
   },
 }

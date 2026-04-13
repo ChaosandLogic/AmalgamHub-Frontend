@@ -1,9 +1,10 @@
 /**
  * Base URL for Socket.io connections. Used by chat and notifications.
  *
- * Nginx proxies /socket.io to the backend, so the browser connects to the
- * same origin the page was loaded from (no cross-origin issues).
- * NEXT_PUBLIC_API_URL can override if set.
+ * With the Next.js rewrite `/socket.io` → backend (see next.config.mjs), the browser
+ * can use the same origin as the page (no CORS). Nginx in production should proxy
+ * `/socket.io` the same way. Override with NEXT_PUBLIC_API_URL if the client must
+ * talk to the API host directly.
  */
 export function getSocketApiUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:3002'

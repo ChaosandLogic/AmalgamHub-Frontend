@@ -66,9 +66,9 @@ function ChatPageContent() {
   const filteredProjects = useMemo(() => {
     if (!projectSearchLower) return projects
     return projects.filter((p: any) => {
-      const name = (p?.name ?? '').toLowerCase()
-      const code = (p?.code ?? '').toLowerCase()
-      const client = (p?.client_name ?? p?.clientName ?? '').toLowerCase()
+      const name = String(p?.name ?? '').toLowerCase()
+      const code = String(p?.code ?? '').toLowerCase()
+      const client = String(p?.client_name ?? p?.clientName ?? '').toLowerCase()
       return name.includes(projectSearchLower) || code.includes(projectSearchLower) || client.includes(projectSearchLower)
     })
   }, [projects, projectSearchLower])
@@ -76,7 +76,7 @@ function ChatPageContent() {
   const projectsByCompany = useMemo(() => {
     const map = new Map<string, any[]>()
     filteredProjects.forEach((p: any) => {
-      const key = (p?.client_name ?? p?.clientName ?? '') || 'No company'
+      const key = String(p?.client_name ?? p?.clientName ?? '') || 'No company'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(p)
     })

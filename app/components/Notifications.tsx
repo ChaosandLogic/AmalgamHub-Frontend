@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client'
 import { useToast } from './Toast'
 import LoadingSpinner from './LoadingSpinner'
 import { getSocketApiUrl } from '../lib/utils/socketUrl'
+import { getDefaultSocketIoOptions } from '../lib/utils/socketIoOptions'
 import { apiGet, apiPatch, apiDelete } from '../lib/api/client'
 import { NOTIFICATION_POLL_INTERVAL_MS } from '../lib/constants/ui'
 
@@ -35,15 +36,8 @@ function Notifications() {
 
     const apiUrl = getSocketApiUrl()
     const newSocket = io(apiUrl, {
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-      path: '/socket.io',
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      timeout: 10000,
-      autoConnect: true
+      ...getDefaultSocketIoOptions(),
+      autoConnect: true,
     })
 
     newSocket.on('connect', () => {
