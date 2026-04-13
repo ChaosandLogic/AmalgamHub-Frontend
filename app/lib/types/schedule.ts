@@ -14,10 +14,14 @@ export interface Resource {
 export interface Project {
   id: string
   name: string
-  code?: string
+  /** Job / project code; API may send a number (e.g. FileMaker). */
+  code?: string | number
   color?: string
   project_manager?: string
   account_manager?: string
+  /** Company / client label (snake_case from API or camelCase in forms). */
+  client_name?: string
+  clientName?: string
 }
 
 export interface Booking {

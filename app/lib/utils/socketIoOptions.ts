@@ -18,7 +18,7 @@ export function getDefaultSocketIoOptions() {
   const token = getCookieValue('token')
   return {
     withCredentials: true,
-    transports: ['polling', 'websocket'] as const,
+    transports: ['polling', 'websocket'],
     path: '/socket.io',
     reconnection: true,
     reconnectionDelay: 1000,
