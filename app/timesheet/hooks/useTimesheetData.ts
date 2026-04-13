@@ -157,15 +157,12 @@ export function useTimesheetData({
     ) {
       return
     }
+    const currentWeek = getLocalDateString(weekStart)
     try {
-      const data = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
+      const data = await apiGet<{ timesheet: any }>(`/api/timesheets/draft?week=${currentWeek}`)
       if (data.timesheet) {
-        const autosavedWeek = weekStartKeyFromApi(data.timesheet.weekStartDate)
-        const currentWeek = getLocalDateString(weekStart)
-        if (autosavedWeek === currentWeek) {
-          hydrateFromSavedInComponent(data.timesheet)
-          return
-        }
+        hydrateFromSavedInComponent(data.timesheet)
+        return
       }
     } catch (error) {
       console.error('Failed to load autosaved data:', error)
@@ -207,14 +204,11 @@ export function useTimesheetData({
     let cancelled = false
     ;(async () => {
       try {
-        const draftRes = await apiGet<{ timesheet: any }>('/api/timesheets/draft')
+        const draftRes = await apiGet<{ timesheet: any }>(`/api/timesheets/draft?week=${currentWeek}`)
         if (!cancelled && draftRes.timesheet) {
-          const draftWeek = weekStartKeyFromApi(draftRes.timesheet.weekStartDate)
-          if (draftWeek === currentWeek) {
-            setSubmittedWeek(currentWeek)
-            hydrateFromSavedInComponent(draftRes.timesheet)
-            return
-          }
+          setSubmittedWeek(currentWeek)
+          hydrateFromSavedInComponent(draftRes.timesheet)
+          return
         }
       } catch {}
       if (cancelled) return
