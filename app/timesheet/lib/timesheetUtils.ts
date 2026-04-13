@@ -105,6 +105,7 @@ export function formatDayLabel(weekStart: Date, index: number): string {
 export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boolean) {
   const byJob = new Map<string, any>()
   const dayTotals = Array(7).fill(0)
+  const overtimeByDay = Array(7).fill(0)
   let totalHours = 0
   let totalOvertimeHours = 0
 
@@ -140,16 +141,22 @@ export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boole
       entry.standardTotal = entry.total - entry.overtimeTotal
 
       dayTotals[day] += hours
+      overtimeByDay[day] += overtime
       totalHours += hours
       totalOvertimeHours += overtime
     }
   }
 
   const standardHours = overtimeEnabled ? Math.max(0, totalHours - totalOvertimeHours) : totalHours
+  const standardByDay = overtimeEnabled
+    ? dayTotals.map((total, i) => Math.max(0, total - overtimeByDay[i]))
+    : dayTotals
 
   return {
     byJob,
     dayTotals,
+    overtimeByDay,
+    standardByDay,
     totalHours,
     standardHours,
     overtimeHours: totalOvertimeHours,
