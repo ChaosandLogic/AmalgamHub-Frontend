@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Header from '../components/Header'
 import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Plus, MoreVertical, Trash2, Users } from 'lucide-react'
+import { Plus, MoreVertical, Trash2, Users, Copy } from 'lucide-react'
 import Board from './components/Board'
 import BoardMembers from './components/BoardMembers'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -40,6 +40,9 @@ export default function TasksPage() {
   const [showBoardMenu, setShowBoardMenu] = useState<string | null>(null)
   const [boardMemberCount, setBoardMemberCount] = useState<number>(0)
   const [showMembersDialog, setShowMembersDialog] = useState(false)
+  const [showCopyBoardDialog, setShowCopyBoardDialog] = useState(false)
+  const [copyBoardName, setCopyBoardName] = useState('')
+  const [copyingBoard, setCopyingBoard] = useState(false)
 
   // Save selected board to localStorage whenever it changes
   useEffect(() => {
@@ -113,6 +116,30 @@ export default function TasksPage() {
     } catch (error) {
       console.error('Error creating board:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to create board')
+    }
+  }
+
+  async function copyBoard() {
+    if (!selectedBoard || copyingBoard) return
+    setCopyingBoard(true)
+    try {
+      const data = await apiPost<{ board: TaskBoard }>(
+        `/api/tasks/boards/${selectedBoard.id}/copy`,
+        { name: copyBoardName.trim() || undefined },
+        { defaultErrorMessage: 'Failed to copy board' }
+      )
+      if (!data.board) throw new Error('Invalid response format')
+      setBoards([data.board, ...boards])
+      setSelectedBoard(data.board)
+      setShowCopyBoardDialog(false)
+      setCopyBoardName('')
+      setShowBoardMenu(null)
+      toast.success('Board copied')
+    } catch (error) {
+      console.error('Error copying board:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to copy board')
+    } finally {
+      setCopyingBoard(false)
     }
   }
 
@@ -268,6 +295,37 @@ export default function TasksPage() {
                         padding: 4
                       }}
                     >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setCopyBoardName(`Copy of ${selectedBoard.name}`)
+                          setShowCopyBoardDialog(true)
+                          setShowBoardMenu(null)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          color: 'var(--text-primary)',
+                          fontSize: 14,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          transition: 'background 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'var(--bg-tertiary)'
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        <Copy size={16} />
+                        Copy board
+                      </button>
                       {selectedBoard.company_wide !== 1 && (
                         <button
                           onClick={(e) => {
@@ -517,6 +575,101 @@ export default function TasksPage() {
                   }}
                 >
                   Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showCopyBoardDialog && selectedBoard && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'var(--modal-backdrop)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50
+            }}
+            onClick={() => {
+              if (!copyingBoard) {
+                setShowCopyBoardDialog(false)
+                setCopyBoardName('')
+              }
+            }}
+          >
+            <div
+              style={{
+                background: 'var(--surface)',
+                borderRadius: 12,
+                padding: 24,
+                maxWidth: '500px',
+                width: '90vw',
+                maxHeight: '90vh',
+                overflowY: 'auto'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h2 style={{ margin: '0 0 8px 0' }}>Copy board</h2>
+              <p style={{ margin: '0 0 16px 0', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Creates a new board with the same lists and cards. Card assignees are copied. Gantt timeline tasks are not included.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>
+                    Name for the new board *
+                  </label>
+                  <input
+                    type="text"
+                    value={copyBoardName}
+                    onChange={e => setCopyBoardName(e.target.value)}
+                    placeholder="Board name"
+                    disabled={copyingBoard}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      fontSize: 14
+                    }}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCopyBoardDialog(false)
+                    setCopyBoardName('')
+                  }}
+                  disabled={copyingBoard}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    cursor: copyingBoard ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={copyBoard}
+                  disabled={copyingBoard || !copyBoardName.trim()}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: 6,
+                    background: copyBoardName.trim() && !copyingBoard ? 'var(--success)' : 'var(--text-tertiary)',
+                    color: 'white',
+                    cursor: copyBoardName.trim() && !copyingBoard ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  {copyingBoard ? 'Copying…' : 'Copy'}
                 </button>
               </div>
             </div>
