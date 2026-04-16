@@ -323,48 +323,6 @@ export default function ProjectsPage() {
               Refresh
             </button>
           </div>
-          {(user?.role === 'admin' || user?.role === 'booker') && (
-            <button
-              onClick={() => {
-                setEditingProject(null)
-                setFormData({
-                  name: '',
-                  code: '',
-                  clientName: '',
-                  status: 'active',
-                  startDate: '',
-                  endDate: '',
-                  budget: '',
-                  budgetType: 'hours',
-                  color: '#059669' // Default to success color hex value
-                })
-                setShowDialog(true)
-              }}
-              style={{
-                padding: '8px 16px',
-                background: 'var(--success)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 500,
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--success-hover)'
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--success)'
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              + Add Project
-            </button>
-          )}
         </div>
       </div>
       
@@ -481,7 +439,7 @@ export default function ProjectsPage() {
 
         {projects.length === 0 && (
           <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>
-            No projects yet. Click "Add Project" to get started.
+            No projects yet.
           </div>
         )}
         {projects.length > 0 && filteredProjects.length === 0 && (
