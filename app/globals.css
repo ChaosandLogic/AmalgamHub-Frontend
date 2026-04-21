@@ -46,6 +46,7 @@
   /* Normal Priority Booking Colors - Distinct from weekend background */
   --priority-normal-booking-bg: #a5bedc; /* Light blue-gray for normal priority bookings */
   --priority-normal-booking-border: #8ab1e7;
+  --priority-booking-text: #333; /* Dark text on light priority backgrounds */
   
   /* Time Off / Holiday Colors - Distinct from weekend background */
   --timeoff-bg: #7e7e7e; /* Medium gray for time off bookings - different from priority-normal-bg */
@@ -155,6 +156,7 @@ body.dark-mode {
   /* Normal Priority Booking Colors for dark mode - Soft */
   --priority-normal-booking-bg: #3d4043; /* Soft elevated surface */
   --priority-normal-booking-border: #5a5d62; /* Soft border */
+  --priority-booking-text: #e8e8e8; /* Light text on dark priority backgrounds */
   
   /* Resource Type Default Colors for dark mode - Soft, muted colors */
   --resource-person: #3c6081; /* Softer blue - more muted, closer to background */

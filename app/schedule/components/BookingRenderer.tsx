@@ -168,20 +168,24 @@ function BookingRenderer({
         
         let background: string
         let border: string
+        let textColor: string
         if (isTimeOff) {
           const timeOffColor = booking.color && booking.color !== 'var(--text-secondary)' 
             ? booking.color 
             : 'var(--timeoff-bg)'
           background = timeOffColor
           border = timeOffColor
+          textColor = 'white'
         } else if (colorMode === 'pm' && booking.project_manager_id && pmColorMap?.[booking.project_manager_id]) {
           const pmColor = pmColorMap[booking.project_manager_id]
           background = pastelise(pmColor)
           border = pmColor
+          textColor = '#333'
         } else {
           const priorityColors = getPriorityColor(priority)
           background = priorityColors.background
           border = priorityColors.border
+          textColor = 'var(--priority-booking-text)'
         }
         const project =
           projectsById &&
@@ -240,7 +244,7 @@ function BookingRenderer({
               borderRadius: 6,
               padding: '2px 6px',
               fontSize: '11px',
-              color: isTimeOff ? 'white' : '#333',
+              color: textColor,
               cursor: 'move',
               overflow: 'hidden',
               display: 'flex',
@@ -339,20 +343,24 @@ function BookingRenderer({
         
         let background: string
         let border: string
+        let textColor: string
         if (isTimeOff) {
           const timeOffColor = booking.color && booking.color !== 'var(--text-secondary)' 
             ? booking.color 
             : 'var(--timeoff-bg)'
           background = timeOffColor
           border = timeOffColor
+          textColor = 'white'
         } else if (colorMode === 'pm' && booking.project_manager_id && pmColorMap?.[booking.project_manager_id]) {
           const pmColor = pmColorMap[booking.project_manager_id]
           background = pastelise(pmColor)
           border = pmColor
+          textColor = '#333'
         } else {
           const priorityColors = getPriorityColor(priority)
           background = priorityColors.background
           border = priorityColors.border
+          textColor = 'var(--priority-booking-text)'
         }
         
         const isTentative = booking.tentative === 1 || booking.tentative === true
@@ -405,7 +413,7 @@ function BookingRenderer({
               borderRadius: 6,
               padding: '2px 6px',
               fontSize: '11px',
-              color: isTimeOff ? 'white' : '#333',
+              color: textColor,
               cursor: 'move',
               overflow: 'hidden',
               display: 'flex',
