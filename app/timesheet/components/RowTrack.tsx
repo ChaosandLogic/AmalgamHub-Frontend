@@ -186,7 +186,7 @@ export default function RowTrack({
             borderLeft:
               i % 4 === 0
                 ? '1px solid var(--border)'
-                : '1px dashed var(--bg-tertiary)',
+                : '1px dashed var(--border-strong)',
             background: slotBg(i),
           }}
           title={slotLabelFullDay(i)}

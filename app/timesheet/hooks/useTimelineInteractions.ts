@@ -9,7 +9,7 @@ import {
   getSegments,
   getSegmentAt,
 } from '../lib/timesheetUtils'
-import { apiPost, apiPut } from '../../lib/api/client'
+import { apiPost, apiFetch } from '../../lib/api/client'
 
 export type SelectedSegment = {
   dayIndex: number
@@ -68,6 +68,8 @@ export function useTimelineInteractions({
 
   const draggingRef = useRef<any>(null)
   const isDraggingRef = useRef(false)
+  const saveFailCountRef = useRef(0)
+  const sessionExpiredRef = useRef(false)
 
   function trackId(dayIndex: number, rowId: string) {
     return `track-${dayIndex}-${rowId}`
@@ -86,7 +88,29 @@ export function useTimelineInteractions({
         localStorage.setItem('timesheet_autosave', JSON.stringify(payload))
       }
     } catch {}
-    apiPut('/api/timesheets/draft', payload).catch(() => {})
+
+    apiFetch('/api/timesheets/draft', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+    }).then(res => {
+      if (res.ok) {
+        saveFailCountRef.current = 0
+        return
+      }
+      saveFailCountRef.current++
+      if ((res.status === 401 || res.status === 403) && !sessionExpiredRef.current) {
+        sessionExpiredRef.current = true
+        toast.error('Your session has expired. Your work is saved locally — please log in again.')
+      } else if (saveFailCountRef.current === 1) {
+        toast.error('Autosave failed — changes are saved locally only.')
+      }
+    }).catch(() => {
+      saveFailCountRef.current++
+      if (saveFailCountRef.current === 1) {
+        toast.error('Autosave failed — unable to reach server. Changes are saved locally only.')
+      }
+    })
   }
 
   function onMouseDownCell(

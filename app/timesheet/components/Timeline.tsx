@@ -186,6 +186,25 @@ export default function Timeline({ userName }: TimelineProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowsByDay, weekStart])
 
+  // Warn before closing the tab if a save is still pending, and flush on unmount
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveTimerRef.current) {
+        e.preventDefault()
+        autoSave()
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        autoSave()
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Zero out overtimeHours in row state when overtime is disabled so serialization stays consistent.
   useEffect(() => {
     if (!overtimeEnabled) {

@@ -5,7 +5,7 @@ import { useUser } from '../../lib/hooks/useUser'
 import { startOfWeek } from '../../lib/utils/dateUtils'
 import { getLocalDateString } from '../../lib/utils/dateUtils'
 import { todayIndexForWeek } from '../lib/timesheetUtils'
-import { apiGet } from '../../lib/api/client'
+import { apiGet, apiPost } from '../../lib/api/client'
 
 export function useTimelineSettings() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
@@ -81,6 +81,16 @@ export function useTimelineSettings() {
         setSettingsLoaded(true)
       }
     })()
+  }, [user])
+
+  // Periodically refresh the JWT so active sessions don't silently expire (every 4 hours)
+  useEffect(() => {
+    if (!user) return
+    const REFRESH_INTERVAL = 4 * 60 * 60 * 1000
+    const interval = setInterval(() => {
+      apiPost('/api/refresh').catch(() => {})
+    }, REFRESH_INTERVAL)
+    return () => clearInterval(interval)
   }, [user])
 
   // Load today's bookings when userResourceId is set

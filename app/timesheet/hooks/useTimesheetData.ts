@@ -150,6 +150,20 @@ export function useTimesheetData({
     } catch {}
   }
 
+  function loadLocalStorageSnapshot(currentWeek: string): any | null {
+    try {
+      const key = currentUserId
+        ? `timesheet_autosave_${currentUserId}`
+        : 'timesheet_autosave'
+      const raw = localStorage.getItem(key)
+      if (!raw) return null
+      const saved = JSON.parse(raw)
+      const savedWeek = weekStartKeyFromApi(saved?.weekStartDate)
+      if (savedWeek === currentWeek) return saved
+    } catch {}
+    return null
+  }
+
   async function loadAutosavedForWeek() {
     if (
       justSubmittedRef.current &&
@@ -158,15 +172,33 @@ export function useTimesheetData({
       return
     }
     const currentWeek = getLocalDateString(weekStart)
+    let serverDraft: any = null
     try {
       const data = await apiGet<{ timesheet: any }>(`/api/timesheets/draft?week=${currentWeek}`)
-      if (data.timesheet) {
-        hydrateFromSavedInComponent(data.timesheet)
-        return
-      }
+      serverDraft = data.timesheet || null
     } catch (error) {
       console.error('Failed to load autosaved data:', error)
     }
+
+    const localSnapshot = loadLocalStorageSnapshot(currentWeek)
+
+    if (serverDraft && localSnapshot) {
+      const serverDate = serverDraft.submissionDate ? new Date(serverDraft.submissionDate).getTime() : 0
+      const localDate = localSnapshot.submissionDate ? new Date(localSnapshot.submissionDate).getTime() : 0
+      hydrateFromSavedInComponent(localDate > serverDate ? localSnapshot : serverDraft)
+      return
+    }
+
+    if (serverDraft) {
+      hydrateFromSavedInComponent(serverDraft)
+      return
+    }
+
+    if (localSnapshot) {
+      hydrateFromSavedInComponent(localSnapshot)
+      return
+    }
+
     setRowsByDay(
       Array.from({ length: 7 }, () =>
         Array.from(
