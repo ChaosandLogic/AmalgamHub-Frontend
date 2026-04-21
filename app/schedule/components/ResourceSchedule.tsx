@@ -1098,22 +1098,27 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
         </div>
       </div>
 
-      {showBookingDialog && (newBookingData || editingBooking) && (
-        <BookingDialog
-          data={newBookingData}
-          booking={editingBooking}
-          projects={projects}
-          users={users}
-          monthStart={monthStart}
-          onSave={editingBooking ? updateBooking : createBooking}
-          onDelete={editingBooking ? () => deleteBooking(editingBooking.id) : undefined}
-          onCancel={() => {
-            setShowBookingDialog(false)
-            setNewBookingData(null)
-            setEditingBooking(null)
-          }}
-        />
-      )}
+      {showBookingDialog && (newBookingData || editingBooking) && (() => {
+        const dialogResourceId = editingBooking?.resource_id ?? newBookingData?.resourceId
+        const dialogResourceType = resources.find((r: any) => r.id === dialogResourceId)?.type || 'person'
+        return (
+          <BookingDialog
+            data={newBookingData}
+            booking={editingBooking}
+            projects={projects}
+            users={users}
+            monthStart={monthStart}
+            onSave={editingBooking ? updateBooking : createBooking}
+            onDelete={editingBooking ? () => deleteBooking(editingBooking.id) : undefined}
+            onCancel={() => {
+              setShowBookingDialog(false)
+              setNewBookingData(null)
+              setEditingBooking(null)
+            }}
+            resourceType={dialogResourceType}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -8,6 +8,8 @@ function getClientName(p: any): string {
   return (p?.client_name ?? p?.clientName ?? '') || 'No company'
 }
 
+const TIMESLOT_RESOURCE_TYPES = ['vehicle', 'room', 'equipment']
+
 interface BookingDialogProps {
   data: any
   booking: any
@@ -17,9 +19,10 @@ interface BookingDialogProps {
   onSave: (data: any) => Promise<void>
   onDelete?: () => void
   onCancel: () => void
+  resourceType?: string
 }
 
-export default function BookingDialog({ data, booking, projects, users, monthStart, onSave, onDelete, onCancel }: BookingDialogProps) {
+export default function BookingDialog({ data, booking, projects, users, monthStart, onSave, onDelete, onCancel, resourceType = 'person' }: BookingDialogProps) {
   const toast = useToast()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isEdit = !!booking
@@ -49,6 +52,9 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
   const [priority, setPriority] = useState(booking?.priority || 'normal')
   const [projectManagerId, setProjectManagerId] = useState(booking?.project_manager_id || '')
   const [tentative, setTentative] = useState(booking?.tentative || false)
+  const showTimeslots = TIMESLOT_RESOURCE_TYPES.includes(resourceType.toLowerCase())
+  const [startTime, setStartTime] = useState(booking?.start_time || '')
+  const [endTime, setEndTime] = useState(booking?.end_time || '')
   
   // Time off specific state
   const [timeOffType, setTimeOffType] = useState<'holiday' | 'sick' | 'public' | 'nonwork'>(() => {
@@ -78,6 +84,8 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
       setPriority(booking.priority || 'normal')
       setProjectManagerId(booking.project_manager_id || '')
       setTentative(booking.tentative || false)
+      setStartTime(booking.start_time || '')
+      setEndTime(booking.end_time || '')
     } else if (data) {
       // Update dates from data when creating new booking
       setStartDate(getLocalDateString(getDateForDay(monthStart, data.startDay)))
@@ -517,6 +525,49 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
             </div>
           </div>
 
+          {showTimeslots && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Start Time
+                </label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    fontSize: 14,
+                    background: 'var(--input-bg)',
+                    color: 'var(--input-text)'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    fontSize: 14,
+                    background: 'var(--input-bg)',
+                    color: 'var(--input-text)'
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label style={{ display: 'block', marginBottom: 4, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
               Hours per day
@@ -841,14 +892,16 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
                 } else {
                   // Handle regular booking: use company name as title when title is empty
                   const effectiveTitle = title.trim() || (selectedProject && getClientName(selectedProject) !== 'No company' ? getClientName(selectedProject) : 'New Booking')
+                  const effectiveStartTime = showTimeslots && startTime ? startTime : null
+                  const effectiveEndTime = showTimeslots && endTime ? endTime : null
                   if (isEdit) {
                     await onSave({
                       title: effectiveTitle,
                       projectId: projectId || null,
                       startDate,
                       endDate,
-                      startTime: null,
-                      endTime: null,
+                      startTime: effectiveStartTime,
+                      endTime: effectiveEndTime,
                       hours: hours ? parseFloat(hours) : null,
                       color: color || null,
                       priority: priority ? priority : 'normal',
@@ -862,8 +915,8 @@ export default function BookingDialog({ data, booking, projects, users, monthSta
                       projectId: projectId || null,
                       startDate: startDate || getLocalDateString(getDateForDay(monthStart, data.startDay)),
                       endDate: endDate || getLocalDateString(getDateForDay(monthStart, data.endDay)),
-                      startTime: null,
-                      endTime: null,
+                      startTime: effectiveStartTime,
+                      endTime: effectiveEndTime,
                       hours: hours ? parseFloat(hours) : null,
                       color: color || null,
                       priority: priority ? priority : 'normal',

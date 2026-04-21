@@ -8,6 +8,11 @@ function pastelise(color: string): string {
   return `color-mix(in srgb, ${color} 75%, white)`
 }
 
+function formatTime(time: string): string {
+  const [h, m] = time.split(':')
+  return `${parseInt(h)}:${m}`
+}
+
 interface BookingRendererProps {
   bookingsByDay: Record<number, any[]>
   monthStart: Date
@@ -290,7 +295,7 @@ function BookingRenderer({
                     endDayIndex
                   ).toLocaleDateString('en-GB')}`
                 : ''
-            }`}
+            }${booking.start_time && booking.end_time ? ` (${formatTime(booking.start_time)} - ${formatTime(booking.end_time)})` : ''}`}
           >
             {hasOverlap ? (
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
@@ -314,11 +319,15 @@ function BookingRenderer({
                     {projectLabel}
                   </span>
                 )}
-                {booking.hours && (
+                {booking.start_time && booking.end_time ? (
+                  <span style={{ fontSize: '10px', opacity: 0.9 }}>
+                    {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                  </span>
+                ) : booking.hours ? (
                   <span style={{ fontSize: '10px', opacity: 0.9 }}>
                     {booking.hours} hrs per day
                   </span>
-                )}
+                ) : null}
               </>
             )}
           </div>
@@ -433,11 +442,15 @@ function BookingRenderer({
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
                   {booking.title}
                 </span>
-                {booking.hours && (
+                {booking.start_time && booking.end_time ? (
+                  <span style={{ fontSize: '10px', opacity: 0.9 }}>
+                    {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                  </span>
+                ) : booking.hours ? (
                   <span style={{ fontSize: '10px', opacity: 0.9 }}>
                     {booking.hours} hrs per day
                   </span>
-                )}
+                ) : null}
               </>
             )}
           </div>
