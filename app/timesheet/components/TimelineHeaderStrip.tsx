@@ -46,16 +46,7 @@ const TimelineHeaderStrip = forwardRef<HTMLDivElement, TimelineHeaderStripProps>
               </div>
             )
           }
-          return (
-            <div
-              key={slotIndex}
-              style={{
-                borderLeft: '1px dashed var(--border)',
-                alignSelf: 'end',
-                height: 6,
-              }}
-            />
-          )
+          return <div key={slotIndex} />
         })}
       </div>
     )

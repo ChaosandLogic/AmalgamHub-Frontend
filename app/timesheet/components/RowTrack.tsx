@@ -185,7 +185,7 @@ export default function RowTrack({
             cursor: 'crosshair',
             borderLeft:
               i % 4 === 0
-                ? '1px solid var(--border)'
+                ? '1px solid var(--border-strong)'
                 : '1px dashed var(--border-strong)',
             background: slotBg(i),
           }}
