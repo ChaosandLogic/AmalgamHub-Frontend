@@ -9,7 +9,7 @@ import {
   getSegments,
   getSegmentAt,
 } from '../lib/timesheetUtils'
-import { apiPost, apiFetch } from '../../lib/api/client'
+import { apiPost, apiPut } from '../../lib/api/client'
 
 export type SelectedSegment = {
   dayIndex: number
@@ -89,26 +89,16 @@ export function useTimelineInteractions({
       }
     } catch {}
 
-    apiFetch('/api/timesheets/draft', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' },
-    }).then(res => {
-      if (res.ok) {
-        saveFailCountRef.current = 0
-        return
-      }
+    apiPut('/api/timesheets/draft', payload as Record<string, unknown>).then(() => {
+      saveFailCountRef.current = 0
+    }).catch((err: Error) => {
       saveFailCountRef.current++
-      if ((res.status === 401 || res.status === 403) && !sessionExpiredRef.current) {
+      const msg = (err.message || '').toLowerCase()
+      if ((msg.includes('expired') || msg.includes('authentication')) && !sessionExpiredRef.current) {
         sessionExpiredRef.current = true
         toast.error('Your session has expired. Your work is saved locally — please log in again.')
       } else if (saveFailCountRef.current === 1) {
         toast.error('Autosave failed — changes are saved locally only.')
-      }
-    }).catch(() => {
-      saveFailCountRef.current++
-      if (saveFailCountRef.current === 1) {
-        toast.error('Autosave failed — unable to reach server. Changes are saved locally only.')
       }
     })
   }
