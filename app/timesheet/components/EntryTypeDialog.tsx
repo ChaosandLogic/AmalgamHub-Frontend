@@ -69,7 +69,7 @@ export default function EntryTypeDialog({
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {(
-            ['standard', 'overtime', 'extra-overtime'] as EntryType[]
+            ['standard', 'overtime'] as EntryType[]
           ).map((type) => (
             <button
               key={type}
@@ -100,7 +100,6 @@ export default function EntryTypeDialog({
               />
               {type === 'standard' && 'Standard'}
               {type === 'overtime' && 'Overtime'}
-              {type === 'extra-overtime' && 'Extra overtime'}
             </button>
           ))}
         </div>

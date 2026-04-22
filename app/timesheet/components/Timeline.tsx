@@ -349,7 +349,7 @@ export default function Timeline({ userName }: TimelineProps) {
         </div>
       </div>
       <div style={{ marginTop: 0, padding: 16, display: 'grid', gap: 16, gridTemplateRows: 'auto auto auto', overflow: 'visible', width: '100%', minWidth: 0 }}>
-        <DashboardCards summary={summary} todaysBookings={todaysBookings} projects={projects} recentJobs={recentJobs} />
+        <DashboardCards summary={summary} activeDay={activeDay} dayLabel={DAYS[activeDay]} todaysBookings={todaysBookings} projects={projects} recentJobs={recentJobs} />
         
         {/* Live Timer (hidden for now) */}
         {false && (
@@ -456,7 +456,7 @@ export default function Timeline({ userName }: TimelineProps) {
               )}
               {overtimeEnabled && !selectedSegment && (
                 <small style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  Double-click an entry to set type: Standard, Overtime, or Extra overtime
+                  Double-click an entry to set type: Standard or Overtime
                 </small>
               )}
             </div>
@@ -659,9 +659,9 @@ export default function Timeline({ userName }: TimelineProps) {
       />
 
       <ConfirmDialog
-        isOpen={!!(entryTypePopup && entryTypeConfirm && (entryTypeConfirm === 'overtime' || entryTypeConfirm === 'extra-overtime'))}
+        isOpen={!!(entryTypePopup && entryTypeConfirm && entryTypeConfirm === 'overtime')}
         title="Confirm entry type"
-        message={`Mark this time block as ${entryTypeConfirm === 'overtime' ? 'Overtime' : 'Extra overtime'}?`}
+        message="Mark this time block as Overtime?"
         confirmText="Confirm"
         cancelText="Cancel"
         type="warning"

@@ -9,7 +9,10 @@ interface DashboardCardsProps {
     overtimeHours?: number
     overtimeEnabled?: boolean
     byJob?: Map<string, unknown>
+    dayTotals?: number[]
   }
+  activeDay: number
+  dayLabel: string
   todaysBookings: any[]
   projects: any[]
   recentJobs: Array<{ jobNumber: string; title: string }>
@@ -17,6 +20,8 @@ interface DashboardCardsProps {
 
 export default function DashboardCards({
   summary,
+  activeDay,
+  dayLabel,
   todaysBookings,
   projects,
   recentJobs,
@@ -49,9 +54,11 @@ export default function DashboardCards({
         })
       : []
 
+  const dayTotal = summary.dayTotals?.[activeDay] ?? 0
+
   const summaryCardCount =
     (todaysJobs.length === 1 ? 1 : 0) +
-    1 +
+    2 +
     (summary?.overtimeEnabled ? 2 : 0)
   const summaryGridCols = `repeat(${Math.max(summaryCardCount, 1)}, minmax(0, 1fr))`
   const gridColumnFull = '1 / -1'
@@ -214,6 +221,10 @@ export default function DashboardCards({
             )}
           </div>
         )}
+        <div style={cardStyle}>
+          <div style={labelStyle}>Total Hours ({dayLabel})</div>
+          <div style={valueStyle}>{dayTotal.toFixed(2)}</div>
+        </div>
         <div style={cardStyle}>
           <div style={labelStyle}>Total Hours (This Week)</div>
           <div style={valueStyle}>{summary.totalHours.toFixed(2)}</div>
