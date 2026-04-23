@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useToast } from '../../components/Toast'
-import { Calendar, Users } from 'lucide-react'
+import { Calendar, Users, Paperclip } from 'lucide-react'
 import CardDialog from './CardDialog'
 
 interface TaskCard {
@@ -19,6 +19,7 @@ interface TaskCard {
   resource_id?: string
   labels?: TaskLabel[]
   members?: TaskCardMember[]
+  attachments?: TaskCardAttachment[]
 }
 
 interface TaskLabel {
@@ -36,6 +37,13 @@ interface TaskCardMember {
   user_name: string
   user_email: string
   created_at: string
+}
+
+interface TaskCardAttachment {
+  id: string
+  original_filename: string
+  mime_type?: string
+  path?: string
 }
 
 interface CardProps {
@@ -61,6 +69,12 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
   const isOverdue = card.due_date 
     ? new Date(card.due_date) < new Date() && new Date(card.due_date).toDateString() !== new Date().toDateString()
     : false
+
+  const previewAttachment = card.attachments?.find((attachment) => {
+    if (!attachment.path) return false
+    if (attachment.mime_type?.startsWith('image/')) return true
+    return /\.(png|jpe?g|gif|webp|svg)$/i.test(attachment.original_filename)
+  })
 
   return (
     <>
@@ -133,6 +147,24 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
           </div>
         )}
 
+        {/* Image attachment preview */}
+        {previewAttachment?.path && (
+          <div style={{ marginBottom: 8 }}>
+            <img
+              src={previewAttachment.path}
+              alt={previewAttachment.original_filename}
+              style={{
+                width: '100%',
+                maxHeight: 140,
+                objectFit: 'cover',
+                borderRadius: 8,
+                border: '1px solid var(--border)'
+              }}
+              loading="lazy"
+            />
+          </div>
+        )}
+
         {/* Footer */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
@@ -168,6 +200,22 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
               >
                 <Users size={12} />
                 {card.members.length}
+              </div>
+            )}
+
+            {/* Attachments */}
+            {card.attachments && card.attachments.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11,
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <Paperclip size={12} />
+                {card.attachments.length}
               </div>
             )}
           </div>

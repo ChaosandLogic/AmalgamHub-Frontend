@@ -21,6 +21,17 @@ export interface TaskList {
   cards?: TaskCard[]
 }
 
+export interface TaskCardAttachment {
+  id: string
+  filename: string
+  original_filename: string
+  mime_type: string
+  size: number
+  path: string
+  uploaded_by: string
+  created_at: string
+}
+
 export interface TaskCard {
   id: string
   list_id: string
@@ -36,6 +47,7 @@ export interface TaskCard {
   archived: number
   labels?: TaskLabel[]
   members?: TaskCardMember[]
+  attachments?: TaskCardAttachment[]
 }
 
 export interface TaskLabel {

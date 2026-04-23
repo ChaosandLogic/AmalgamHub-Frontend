@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '../../components/Toast'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import { X, Calendar, Tag, UserPlus, Save, Archive } from 'lucide-react'
-import { apiGet, apiPost, apiPut, apiDelete } from '../../lib/api/client'
+import { X, Calendar, Tag, UserPlus, Save, Archive, Paperclip, Download, Trash2, Upload } from 'lucide-react'
+import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData, apiDownload } from '../../lib/api/client'
 
 interface TaskCard {
   id: string
@@ -20,6 +20,7 @@ interface TaskCard {
   resource_id?: string
   labels?: TaskLabel[]
   members?: TaskCardMember[]
+  attachments?: TaskCardAttachment[]
 }
 
 interface TaskLabel {
@@ -38,6 +39,17 @@ interface TaskCardMember {
   user_id: string
   user_name: string
   user_email: string
+  created_at: string
+}
+
+interface TaskCardAttachment {
+  id: string
+  filename: string
+  original_filename: string
+  mime_type: string
+  size: number
+  path: string
+  uploaded_by: string
   created_at: string
 }
 
@@ -62,6 +74,7 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
   const [showLabelPicker, setShowLabelPicker] = useState(false)
   const [presetLabels, setPresetLabels] = useState<PresetLabel[]>([])
   const [selectedLabelName, setSelectedLabelName] = useState<string>('')
+  const [uploading, setUploading] = useState(false)
 
   // Handle keyboard events - prevent spacebar from closing dialog when typing
   // This must be called before any conditional returns to maintain hook order
@@ -193,6 +206,40 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
       console.error('Error archiving card:', error)
       toast.error('Failed to archive card')
     }
+  }
+
+  async function uploadAttachment(file: File) {
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      await apiPostFormData(`/api/tasks/cards/${cardId}/attachments`, formData, { defaultErrorMessage: 'Failed to upload file' })
+      await loadCard()
+      toast.success('File uploaded')
+    } catch (error) {
+      console.error('Error uploading attachment:', error)
+      toast.error('Failed to upload file')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function deleteAttachment(attachment: TaskCardAttachment) {
+    if (!confirm(`Delete "${attachment.original_filename}"?`)) return
+    try {
+      await apiDelete(`/api/tasks/cards/${cardId}/attachments/${attachment.id}`, { defaultErrorMessage: 'Failed to delete attachment' })
+      await loadCard()
+      toast.success('Attachment deleted')
+    } catch (error) {
+      console.error('Error deleting attachment:', error)
+      toast.error('Failed to delete attachment')
+    }
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
   if (loading) {
@@ -504,6 +551,110 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
               Add Label
             </button>
           )}
+        </div>
+
+        {/* Attachments */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <Paperclip size={14} />
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Attachments</label>
+          </div>
+
+          {/* Existing Attachments */}
+          {card.attachments && card.attachments.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              {card.attachments.map(attachment => (
+                <div
+                  key={attachment.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '8px 10px',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 6,
+                    fontSize: 13
+                  }}
+                >
+                  <Paperclip size={14} style={{ flexShrink: 0, color: 'var(--text-secondary)' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {attachment.original_filename}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      {formatFileSize(attachment.size)}
+                    </div>
+                  </div>
+                  <a
+                    href={attachment.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      padding: 4,
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Download"
+                  >
+                    <Download size={14} />
+                  </a>
+                  <button
+                    onClick={() => deleteAttachment(attachment)}
+                    style={{
+                      padding: 4,
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <label
+            style={{
+              padding: '6px 12px',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              color: uploading ? 'var(--text-tertiary)' : 'var(--text-secondary)',
+              cursor: uploading ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Upload size={14} />
+            {uploading ? 'Uploading...' : 'Attach File'}
+            <input
+              type="file"
+              style={{ display: 'none' }}
+              disabled={uploading}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  uploadAttachment(file)
+                  e.target.value = ''
+                }
+              }}
+            />
+          </label>
         </div>
 
         {/* Actions */}

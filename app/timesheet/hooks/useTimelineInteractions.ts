@@ -451,7 +451,26 @@ export function useTimelineInteractions({
         [weekKey]: { ...payload, ...response.timesheet },
       }))
       justSubmittedRef.current = true
-      toast.success('Timesheet submitted successfully!')
+
+      const verification = response?.verification
+      if (verification && typeof verification.status === 'string') {
+        const message = verification.message || 'Timesheet submitted.'
+        switch (verification.status) {
+          case 'verified':
+            toast.success(message)
+            break
+          case 'mismatch':
+          case 'sync_failed':
+            toast.warning(message)
+            break
+          case 'sync_disabled':
+          default:
+            toast.success(message)
+            break
+        }
+      } else {
+        toast.success('Timesheet submitted successfully!')
+      }
     } catch (error: unknown) {
       toast.error(
         (error instanceof Error ? error.message : String(error)) || 'Failed to submit timesheet. Please try again.'
