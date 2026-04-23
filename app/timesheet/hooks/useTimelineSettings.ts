@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useUser } from '../../lib/hooks/useUser'
 import { startOfWeek } from '../../lib/utils/dateUtils'
-import { getLocalDateString } from '../../lib/utils/dateUtils'
+import { getLocalDateString, weekStartKeyFromApi } from '../../lib/utils/dateUtils'
 import { todayIndexForWeek } from '../lib/timesheetUtils'
 import { apiGet, apiPost } from '../../lib/api/client'
 
@@ -35,11 +35,8 @@ export function useTimelineSettings() {
         const timesheetsByWeek: { [week: string]: any } = {}
         data.timesheets?.forEach((ts: any) => {
           const raw = ts.week_start_date ?? ts.weekStartDate ?? ''
-          const weekKey =
-            typeof raw === 'string' && raw.length >= 10
-              ? raw.slice(0, 10)
-              : getLocalDateString(new Date(raw || 0))
-          timesheetsByWeek[weekKey] = ts
+          const weekKey = weekStartKeyFromApi(raw)
+          if (weekKey) timesheetsByWeek[weekKey] = ts
         })
         setSubmittedTimesheets(timesheetsByWeek)
       } catch (error) {

@@ -15,6 +15,24 @@ import {
   todayIndexForWeek,
 } from '../lib/timesheetUtils'
 
+/** List endpoint can return a row without `days` if enrichment failed; fetch by id in that case. */
+function submittedTimesheetNeedsFullFetch(ts: any): boolean {
+  if (ts == null || !ts.id) return false
+  const hasDays = Array.isArray(ts.days) && ts.days.length === 7
+  if (!hasDays) return true
+  const hasAnyJob = ts.days.some(
+    (day: any) =>
+      Array.isArray(day) &&
+      day.some((row: any) => {
+        const j = row?.jobNumber != null ? String(row.jobNumber).trim() : ''
+        return j.length > 0 || (Number(row?.totalHours) > 0)
+      })
+  )
+  if (hasAnyJob) return false
+  const totalH = Number(ts.summary?.totalHours ?? 0)
+  return totalH > 0.001
+}
+
 export interface UseTimesheetDataParams {
   weekStart: Date
   userName: string
@@ -172,6 +190,12 @@ export function useTimesheetData({
       return
     }
     const currentWeek = getLocalDateString(weekStart)
+    // A submitted timesheet for this week may have arrived while this async
+    // load was in flight; never clobber the grid with an empty / draft state.
+    if (submittedTimesheetsRef.current[currentWeek]) {
+      return
+    }
+
     let serverDraft: any = null
     try {
       const data = await apiGet<{ timesheet: any }>(`/api/timesheets/draft?week=${currentWeek}`)
@@ -180,22 +204,33 @@ export function useTimesheetData({
       console.error('Failed to load autosaved data:', error)
     }
 
+    if (submittedTimesheetsRef.current[currentWeek]) {
+      return
+    }
+
     const localSnapshot = loadLocalStorageSnapshot(currentWeek)
 
     if (serverDraft && localSnapshot) {
       const serverDate = serverDraft.submissionDate ? new Date(serverDraft.submissionDate).getTime() : 0
       const localDate = localSnapshot.submissionDate ? new Date(localSnapshot.submissionDate).getTime() : 0
+      if (submittedTimesheetsRef.current[currentWeek]) return
       hydrateFromSavedInComponent(localDate > serverDate ? localSnapshot : serverDraft)
       return
     }
 
     if (serverDraft) {
+      if (submittedTimesheetsRef.current[currentWeek]) return
       hydrateFromSavedInComponent(serverDraft)
       return
     }
 
     if (localSnapshot) {
+      if (submittedTimesheetsRef.current[currentWeek]) return
       hydrateFromSavedInComponent(localSnapshot)
+      return
+    }
+
+    if (submittedTimesheetsRef.current[currentWeek]) {
       return
     }
 
@@ -247,7 +282,19 @@ export function useTimesheetData({
 
       // No draft override — load from submitted data
       if (submittedWeek !== currentWeek) setSubmittedWeek(currentWeek)
-      const timesheet = submittedTimesheets[currentWeek]
+      let timesheet = submittedTimesheets[currentWeek]
+      if (timesheet && submittedTimesheetNeedsFullFetch(timesheet)) {
+        try {
+          const id = String(timesheet.id)
+          const res = await apiGet<{ timesheet: any }>(`/api/timesheets/${encodeURIComponent(id)}`)
+          if (res?.timesheet) {
+            timesheet = res.timesheet
+          }
+        } catch {
+          /* use list row if full fetch fails */
+        }
+      }
+      if (cancelled) return
       if (timesheet) hydrateFromSavedInComponent(timesheet)
     })()
 
