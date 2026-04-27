@@ -1,16 +1,38 @@
 'use client'
 
 import { useMemo } from 'react'
-import { getSegments, slotLabelFullDay } from '../lib/timesheetUtils'
+import { EDGE_THRESHOLD } from '../../lib/constants/schedule'
+import { clamp, getDisplaySegments, slotLabelFullDay } from '../lib/timesheetUtils'
 import { ENTRY_TYPE_COLORS, SLOT_WIDTH_PX, type EntryType } from '../lib/constants'
 import type { RowData } from '../lib/types'
+
+/** Pixels reserved for the middle drag (move) zone; keeps resize strips from meeting on narrow entries. */
+const MIN_MOVE_ZONE_PX = 8
+
+/**
+ * Max pixels from each end that count as resize, capped so a usable move region remains
+ * (matches schedule intent: fixed px edges only when the bar is wide enough).
+ */
+function segmentEdgeHandleWidth(widthPx: number): number {
+  if (widthPx <= 0) return 0
+  const forMoveAndEdges = widthPx - MIN_MOVE_ZONE_PX
+  if (forMoveAndEdges > 0) {
+    return Math.min(EDGE_THRESHOLD, Math.floor(forMoveAndEdges / 2))
+  }
+  // Bar shorter than the reserved move zone: use thin edges so most of the bar still moves
+  return Math.max(0, Math.min(EDGE_THRESHOLD, Math.floor((widthPx - 1) / 3)))
+}
 
 export interface RowTrackProps {
   row: RowData
   dayIndex: number
   totalSlots: number
   overlaps: boolean[]
-  onMouseDownCell: (slotIndex: number, e: React.MouseEvent) => void
+  onMouseDownCell: (
+    slotIndex: number,
+    e: React.MouseEvent,
+    options?: { fromSegmentBody?: boolean }
+  ) => void
   onMouseDownHandle: (slotIndex: number, edge: 'left' | 'right') => void
   trackDomId?: string
   trackRef?: React.RefObject<HTMLDivElement | null>
@@ -37,7 +59,7 @@ function renderSegments(
   _setSegmentEntryType: RowTrackProps['setSegmentEntryType'],
   overtimeEnabled: boolean
 ) {
-  const segs = getSegments(row.slots)
+  const segs = getDisplaySegments(row.slots, row.slotEntryTypes, overtimeEnabled)
   if (segs.length === 0) return null
   return (
     <>
@@ -101,27 +123,48 @@ function renderSegments(
                 })
               }
             }}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const w = rect.width
+              const edge = segmentEdgeHandleWidth(w)
+              const mouseX = e.clientX - rect.left
+              if (w <= 0) return
+              if (edge > 0 && mouseX <= edge) {
+                e.currentTarget.style.cursor = 'ew-resize'
+              } else if (edge > 0 && mouseX >= w - edge) {
+                e.currentTarget.style.cursor = 'ew-resize'
+              } else {
+                e.currentTarget.style.cursor = 'move'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.cursor = 'move'
+            }}
             onMouseDown={(e) => {
               const rect = e.currentTarget.getBoundingClientRect()
               const relativeX = e.clientX - rect.left
-              const handleWidth = 12
               const totalWidth = rect.width
+              const handleWidth = segmentEdgeHandleWidth(totalWidth)
 
-              if (relativeX <= handleWidth) {
+              if (handleWidth > 0 && relativeX <= handleWidth) {
                 e.preventDefault()
                 e.stopPropagation()
                 onMouseDownHandle(seg.start, 'left')
-              } else if (relativeX >= totalWidth - handleWidth) {
+              } else if (handleWidth > 0 && relativeX >= totalWidth - handleWidth) {
                 e.preventDefault()
                 e.stopPropagation()
                 onMouseDownHandle(seg.end, 'right')
               } else {
                 e.preventDefault()
                 e.stopPropagation()
-                const middleSlot = Math.floor(
-                  seg.start + (seg.end - seg.start) / 2
-                )
-                onMouseDownCell(middleSlot, e)
+                const trackEl = e.currentTarget.parentElement
+                if (!trackEl) return
+                const tRect = trackEl.getBoundingClientRect()
+                if (tRect.width <= 0) return
+                const x = clamp(e.clientX - tRect.left, 0, tRect.width)
+                const rawSlot = Math.floor(x / (tRect.width / totalSlots))
+                const clickSlot = clamp(rawSlot, seg.start, seg.end)
+                onMouseDownCell(clickSlot, e, { fromSegmentBody: true })
               }
             }}
           />

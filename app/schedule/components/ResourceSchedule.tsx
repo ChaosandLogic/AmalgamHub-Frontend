@@ -912,7 +912,6 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
                   >
                     <option value="all">All Types</option>
                     <option value="person">Person</option>
-                    <option value="team">Team</option>
                     <option value="vehicle">Vehicle</option>
                     <option value="equipment">Equipment</option>
                     <option value="room">Room</option>

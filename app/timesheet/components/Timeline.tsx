@@ -467,7 +467,8 @@ export default function Timeline({ userName }: TimelineProps) {
               gap: 4,
               marginTop: 8,
               gridTemplateColumns: 'minmax(100px, 180px) 1fr auto auto',
-              gridTemplateRows: `20px repeat(${rowsByDay[activeDay]?.length ?? 0}, 36px)`,
+              // First row 26px + grid gap 4px = 30px to first data row, matching header 26px + flex gap 4 in column 2
+              gridTemplateRows: `26px repeat(${rowsByDay[activeDay]?.length ?? 0}, 36px)`,
               alignItems: 'stretch',
               width: '100%',
               minWidth: 0
@@ -476,7 +477,10 @@ export default function Timeline({ userName }: TimelineProps) {
             {/* Column 1: Job (fixed – always visible) */}
             <div style={{ gridColumn: 1, gridRow: 1 }} />
             {rowsByDay[activeDay]?.map((row: any, rowIdx: number) => (
-              <div key={row.id} style={{ gridColumn: 1, gridRow: rowIdx + 2, display: 'flex', alignItems: 'stretch', minHeight: 0 }}>
+              <div
+                key={row.id}
+                style={{ gridColumn: 1, gridRow: rowIdx + 2, display: 'flex', alignItems: 'center', minHeight: 0, width: '100%' }}
+              >
                 <SearchableProjectDropdown
                   value={row.jobNumber}
                   onChange={(num: string) => updateRow(activeDay, row.id, (r: any) => ({ ...r, jobNumber: num }))}
@@ -497,8 +501,20 @@ export default function Timeline({ userName }: TimelineProps) {
                 minWidth: 0
               }}
             >
-              <div style={{ width: totalSlots * SLOT_WIDTH_PX, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <TimelineHeaderStrip ref={headerTimelineRef} totalSlots={totalSlots} />
+              <div style={{ width: totalSlots * SLOT_WIDTH_PX, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'stretch' }}>
+                <div
+                  style={{
+                    height: 26,
+                    minHeight: 26,
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-end',
+                  }}
+                >
+                  <TimelineHeaderStrip ref={headerTimelineRef} totalSlots={totalSlots} />
+                </div>
                 {rowsByDay[activeDay]?.map((row: any, rowIdx: number) => (
                   <RowTrack
                     key={row.id}
@@ -506,7 +522,9 @@ export default function Timeline({ userName }: TimelineProps) {
                     dayIndex={activeDay}
                     totalSlots={totalSlots}
                     overlaps={overlaps}
-                    onMouseDownCell={(slot: number, e: any) => onMouseDownCell(activeDay, row, slot, e)}
+                    onMouseDownCell={(slot: number, e: any, opts?: { fromSegmentBody?: boolean }) =>
+                      onMouseDownCell(activeDay, row, slot, e, opts)
+                    }
                     onMouseDownHandle={(slot: number, handle: 'left' | 'right') => onMouseDownHandle(activeDay, row, slot, handle)}
                     trackDomId={trackId(activeDay, row.id)}
                     trackRef={rowIdx === 0 ? firstRowTrackRef : undefined}

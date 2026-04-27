@@ -67,6 +67,49 @@ export function getSegments(slots: boolean[]): Segment[] {
   return segs
 }
 
+/** Entry type for one slot (empty / unknown → standard). */
+export function entryTypeAtSlot(
+  slotEntryTypes: unknown[] | undefined,
+  index: number
+): EntryType {
+  const t = slotEntryTypes?.[index] as EntryType | '' | undefined
+  if (t === 'overtime' || t === 'extra-overtime' || t === 'standard') return t
+  return 'standard'
+}
+
+/**
+ * Segments for timeline rendering. When `splitByEntryType` is true (overtime mode),
+ * consecutive filled slots are split wherever entry type changes so each overlay
+ * matches per-slot colours; otherwise behaviour matches {@link getSegments}.
+ */
+export function getDisplaySegments(
+  slots: boolean[],
+  slotEntryTypes: unknown[] | undefined,
+  splitByEntryType: boolean
+): Segment[] {
+  if (!splitByEntryType) return getSegments(slots)
+  const segs: Segment[] = []
+  let i = 0
+  while (i < slots.length) {
+    if (!slots[i]) {
+      i++
+      continue
+    }
+    const t0 = entryTypeAtSlot(slotEntryTypes, i)
+    let j = i
+    while (
+      j + 1 < slots.length &&
+      slots[j + 1] &&
+      entryTypeAtSlot(slotEntryTypes, j + 1) === t0
+    ) {
+      j++
+    }
+    segs.push({ start: i, end: j })
+    i = j + 1
+  }
+  return segs
+}
+
 export function getSegmentAt(slots: boolean[], idx: number): Segment | undefined {
   const segs = getSegments(slots)
   return segs.find((s) => idx >= s.start && idx <= s.end)

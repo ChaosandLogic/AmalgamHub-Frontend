@@ -107,7 +107,8 @@ export function useTimelineInteractions({
     dayIndex: number,
     row: any,
     slotIndex: number,
-    e: any
+    e: any,
+    options?: { fromSegmentBody?: boolean }
   ) {
     e.preventDefault()
     isDraggingRef.current = true
@@ -118,6 +119,23 @@ export function useTimelineInteractions({
     const originalSlotEntryTypes = row.slotEntryTypes ? [...row.slotEntryTypes] : []
 
     if (seg) {
+      // RowTrack already put resize on pixel edges and move in the body; the slot-based
+      // "near start/end" rule wrongly turns move into resize for short segments (e.g. 4 cells:
+      // floor(mid) is 1 slot from the start with nearThreshold=1).
+      if (options?.fromSegmentBody) {
+        const grabSlot = clamp(slotIndex, seg.start, seg.end)
+        draggingRef.current = {
+          dayIndex,
+          rowId: row.id,
+          type: 'move',
+          segmentStart: seg.start,
+          segmentEnd: seg.end,
+          offset: grabSlot - seg.start,
+          originalSlots,
+          originalSlotEntryTypes,
+        }
+        return
+      }
       if (Math.abs(slotIndex - seg.start) <= nearThreshold) {
         draggingRef.current = {
           dayIndex,
