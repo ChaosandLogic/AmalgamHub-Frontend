@@ -24,6 +24,74 @@ interface TaskBoard {
 
 const LAST_SELECTED_BOARD_KEY = 'tasks_last_selected_board_id'
 
+function sanitizePdfFilenameSegment(name: string): string {
+  const s = name.replace(/[/\\?%*:|"<>]/g, '_').replace(/\s+/g, ' ').trim()
+  return s.slice(0, 120) || 'Board'
+}
+
+/**
+ * Tight crop inside `[data-task-board]`: union of title + full scrollable list area
+ * (viewport-relative rects converted to coordinates relative to the board element).
+ * Matches html2canvas `x` / `y` / `width` / `height` (offsets inside the capture root).
+ */
+function getTaskBoardCropWithinBoard(boardEl: HTMLElement): { x: number; y: number; width: number; height: number } | null {
+  const rootRect = boardEl.getBoundingClientRect()
+
+  let minL = Infinity
+  let minT = Infinity
+  let maxR = -Infinity
+  let maxB = -Infinity
+
+  function unionViewportRect(r: DOMRect) {
+    minL = Math.min(minL, r.left)
+    minT = Math.min(minT, r.top)
+    maxR = Math.max(maxR, r.right)
+    maxB = Math.max(maxB, r.bottom)
+  }
+
+  /** Scrollable region: include full scrollWidth × scrollHeight (not just the visible viewport). */
+  function unionScrollContents(scrollEl: HTMLElement) {
+    const r = scrollEl.getBoundingClientRect()
+    const left = r.left - scrollEl.scrollLeft
+    const top = r.top - scrollEl.scrollTop
+    const right = left + scrollEl.scrollWidth
+    const bottom = top + scrollEl.scrollHeight
+    minL = Math.min(minL, left)
+    minT = Math.min(minT, top)
+    maxR = Math.max(maxR, right)
+    maxB = Math.max(maxB, bottom)
+  }
+
+  const titleEl = boardEl.querySelector('[data-task-board-title]')
+  if (titleEl instanceof HTMLElement) {
+    unionViewportRect(titleEl.getBoundingClientRect())
+  }
+
+  const scrollEl = boardEl.querySelector('[data-task-board-scroll]')
+  if (scrollEl instanceof HTMLElement) {
+    unionScrollContents(scrollEl)
+  }
+
+  if (!Number.isFinite(minL)) {
+    return null
+  }
+
+  const relLeft = minL - rootRect.left
+  const relTop = minT - rootRect.top
+  const relRight = maxR - rootRect.left
+  const relBottom = maxB - rootRect.top
+
+  const rawW = Math.ceil(relRight - relLeft)
+  const rawH = Math.ceil(relBottom - relTop)
+
+  return {
+    x: Math.max(0, Math.floor(relLeft)),
+    y: Math.max(0, Math.floor(relTop)),
+    width: Math.max(1, rawW),
+    height: Math.max(1, rawH),
+  }
+}
+
 export default function TasksPage() {
   const router = useRouter()
   const toast = useToast()
@@ -43,6 +111,7 @@ export default function TasksPage() {
   const [showCopyBoardDialog, setShowCopyBoardDialog] = useState(false)
   const [copyBoardName, setCopyBoardName] = useState('')
   const [copyingBoard, setCopyingBoard] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   // Save selected board to localStorage whenever it changes
   useEffect(() => {
@@ -160,6 +229,105 @@ export default function TasksPage() {
     } catch (error) {
       console.error('Error deleting board:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to delete board')
+    }
+  }
+
+  /** Capture board DOM like Gantt PDF export (html2canvas + jsPDF landscape A4). */
+  async function handleExportPDF() {
+    if (!selectedBoard) {
+      toast.error('Please select a board first')
+      return
+    }
+
+    setExportingPdf(true)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const { jsPDF } = await import('jspdf')
+
+      const boardEl = document.querySelector('[data-task-board]') as HTMLElement | null
+      if (!boardEl) {
+        toast.error('Could not find board to export')
+        return
+      }
+
+      const crop = getTaskBoardCropWithinBoard(boardEl)
+      if (!crop) {
+        toast.error('Could not measure board layout for export')
+        return
+      }
+
+      toast.success('Generating PDF...')
+
+      const canvas = await html2canvas(boardEl, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        x: crop.x,
+        y: crop.y,
+        width: crop.width,
+        height: crop.height,
+        onclone: (_clonedDoc, element) => {
+          const root = element as HTMLElement
+          root.style.overflow = 'visible'
+          root.style.maxHeight = 'none'
+          root.style.height = 'auto'
+
+          const scroll = root.querySelector('[data-task-board-scroll]') as HTMLElement | null
+          if (scroll) {
+            scroll.style.overflow = 'visible'
+            scroll.style.height = 'auto'
+            scroll.style.maxHeight = 'none'
+          }
+          const cols = root.querySelector('[data-task-board-columns]') as HTMLElement | null
+          if (cols) {
+            cols.style.height = 'auto'
+            cols.style.minHeight = 'auto'
+          }
+        },
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+
+      /** Fit bitmap to A4 landscape without clipping (uniform scale, centered). */
+      const PAGE_W_MM = 297
+      const PAGE_H_MM = 210
+      const MARGIN_MM = 8
+      const innerW = PAGE_W_MM - 2 * MARGIN_MM
+      const innerH = PAGE_H_MM - 2 * MARGIN_MM
+
+      const pxW = canvas.width
+      const pxH = canvas.height
+      const imgAspect = pxW / pxH
+
+      let drawW = innerW
+      let drawH = drawW / imgAspect
+      if (drawH > innerH) {
+        drawH = innerH
+        drawW = drawH * imgAspect
+      }
+
+      const ox = MARGIN_MM + (innerW - drawW) / 2
+      const oy = MARGIN_MM + (innerH - drawH) / 2
+
+      const pdf = new jsPDF('landscape', 'mm', 'a4')
+
+      pdf.addImage(imgData, 'PNG', ox, oy, drawW, drawH)
+
+      const safeName = sanitizePdfFilenameSegment(selectedBoard.name)
+      const dateStr = new Date().toISOString().split('T')[0]
+      const filename = `Tasks_${safeName}_${dateStr}.pdf`
+
+      pdf.save(filename)
+      toast.success('PDF exported successfully!')
+    } catch (error: unknown) {
+      console.error('Error exporting PDF:', error)
+      toast.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          'Failed to export PDF. Please ensure html2canvas and jspdf are installed.'
+      )
+    } finally {
+      setExportingPdf(false)
     }
   }
 
@@ -399,6 +567,39 @@ export default function TasksPage() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {selectedBoard && (
+            <button
+              type="button"
+              onClick={() => void handleExportPDF()}
+              disabled={exportingPdf}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--surface)',
+                color: exportingPdf ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                cursor: exportingPdf ? 'not-allowed' : 'pointer',
+                fontSize: 14,
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (exportingPdf) return
+                e.currentTarget.style.background = 'var(--bg-secondary)'
+                e.currentTarget.style.borderColor = 'var(--border-strong)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--surface)'
+                e.currentTarget.style.borderColor = 'var(--border)'
+              }}
+            >
+              <span>📄</span>
+              {exportingPdf ? 'Exporting…' : 'Export PDF'}
+            </button>
+          )}
           <button
             onClick={() => setShowCreateBoard(true)}
             style={{
@@ -695,7 +896,16 @@ export default function TasksPage() {
 
         {/* Board View */}
         {selectedBoard ? (
-          <Board boardId={selectedBoard.id} boardName={selectedBoard.name} />
+          <Board
+            boardId={selectedBoard.id}
+            boardName={selectedBoard.name}
+            onBoardRenamed={newName => {
+              setSelectedBoard(prev => (prev ? { ...prev, name: newName } : null))
+              setBoards(prev =>
+                prev.map(b => (b.id === selectedBoard.id ? { ...b, name: newName } : b))
+              )
+            }}
+          />
         ) : (
           <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>
             {boards.length === 0 ? (

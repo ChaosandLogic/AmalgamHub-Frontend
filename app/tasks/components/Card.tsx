@@ -88,8 +88,8 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
         style={{
           background: 'var(--surface)',
           borderRadius: 10,
-          padding: 14,
-          marginBottom: 10,
+          padding: '10px 12px',
+          marginBottom: 8,
           border: '1px solid var(--border)',
           cursor: isDragging ? 'grabbing' : 'pointer',
           transition: isDragging ? 'none' : 'all 0.2s ease',
@@ -116,7 +116,7 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
       >
         {/* Labels */}
         {card.labels && card.labels.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
             {card.labels.map((label, index) => (
               <div
                 key={label.name || index}
@@ -134,28 +134,19 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
         )}
 
         {/* Title */}
-        <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+        <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3 }}>
           {card.title}
         </div>
 
-        {/* Description preview */}
-        {card.description && (
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, lineHeight: 1.4 }}>
-            {card.description.length > 100 
-              ? card.description.substring(0, 100) + '...' 
-              : card.description}
-          </div>
-        )}
-
         {/* Image attachment preview */}
         {previewAttachment?.path && (
-          <div style={{ marginBottom: 8 }}>
+          <div style={{ marginBottom: 6 }}>
             <img
               src={previewAttachment.path}
               alt={previewAttachment.original_filename}
               style={{
                 width: '100%',
-                maxHeight: 140,
+                maxHeight: 96,
                 objectFit: 'cover',
                 borderRadius: 8,
                 border: '1px solid var(--border)'
@@ -166,7 +157,7 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
         )}
 
         {/* Footer */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
             {/* Due Date */}
             {card.due_date && (

@@ -75,9 +75,10 @@ interface TaskCardMember {
 interface BoardProps {
   boardId: string
   boardName: string
+  onBoardRenamed?: (name: string) => void
 }
 
-export default function Board({ boardId, boardName }: BoardProps) {
+export default function Board({ boardId, boardName, onBoardRenamed }: BoardProps) {
   const toast = useToast()
   const { user } = useUser()
   const [lists, setLists] = useState<TaskList[]>([])
@@ -86,6 +87,10 @@ export default function Board({ boardId, boardName }: BoardProps) {
   const [newListName, setNewListName] = useState('')
   const [activeCard, setActiveCard] = useState<TaskCard | null>(null)
   const [activeList, setActiveList] = useState<TaskList | null>(null)
+  const [editingBoardTitle, setEditingBoardTitle] = useState(false)
+  const [boardTitleDraft, setBoardTitleDraft] = useState(boardName)
+  const [savingBoardTitle, setSavingBoardTitle] = useState(false)
+  const boardTitleInputRef = useRef<HTMLInputElement>(null)
   // Track the final drag position to avoid race conditions
   const lastDragOverRef = useRef<{ activeId: string; overId: string } | null>(null)
   // Store the original lists state at drag start to calculate correct positions
@@ -120,6 +125,47 @@ export default function Board({ boardId, boardName }: BoardProps) {
   useEffect(() => {
     loadBoard()
   }, [loadBoard])
+
+  useEffect(() => {
+    setBoardTitleDraft(boardName)
+  }, [boardName])
+
+  useEffect(() => {
+    setEditingBoardTitle(false)
+  }, [boardId])
+
+  async function saveBoardTitle() {
+    const trimmed = boardTitleDraft.trim()
+    if (!trimmed) {
+      toast.error('Board name is required')
+      setBoardTitleDraft(boardName)
+      setEditingBoardTitle(false)
+      return
+    }
+    if (trimmed === boardName) {
+      setEditingBoardTitle(false)
+      return
+    }
+    setSavingBoardTitle(true)
+    try {
+      const data = await apiPut<{ board: { name: string } }>(
+        `/api/tasks/boards/${boardId}`,
+        { name: trimmed },
+        { defaultErrorMessage: 'Failed to rename board' }
+      )
+      const newName = data.board?.name ?? trimmed
+      onBoardRenamed?.(newName)
+      toast.success('Board renamed')
+      setEditingBoardTitle(false)
+    } catch (error) {
+      console.error('Error renaming board:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to rename board')
+      setBoardTitleDraft(boardName)
+      setEditingBoardTitle(false)
+    } finally {
+      setSavingBoardTitle(false)
+    }
+  }
 
   async function createList() {
     if (!newListName.trim()) {
@@ -550,9 +596,70 @@ export default function Board({ boardId, boardName }: BoardProps) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-primary)', padding: '20px', borderRadius: '12px' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: 'var(--text-primary)' }}>{boardName}</h2>
+    <div
+      data-task-board
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-primary)', padding: '20px', borderRadius: '12px' }}
+    >
+      <div data-task-board-title style={{ marginBottom: 20 }}>
+        {editingBoardTitle && canEdit ? (
+          <input
+            ref={boardTitleInputRef}
+            type="text"
+            value={boardTitleDraft}
+            disabled={savingBoardTitle}
+            onChange={e => setBoardTitleDraft(e.target.value)}
+            onBlur={() => {
+              void saveBoardTitle()
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                boardTitleInputRef.current?.blur()
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                setBoardTitleDraft(boardName)
+                setEditingBoardTitle(false)
+              }
+            }}
+            onClick={e => e.stopPropagation()}
+            autoFocus
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border-strong)',
+              borderRadius: 8,
+              padding: '4px 10px',
+              width: 'min(100%, 560px)',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+          />
+        ) : (
+          <h2
+            onClick={() => {
+              if (!canEdit) return
+              setBoardTitleDraft(boardName)
+              setEditingBoardTitle(true)
+            }}
+            title={canEdit ? 'Click to rename' : undefined}
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              cursor: canEdit ? 'pointer' : 'default',
+              width: 'fit-content',
+              borderRadius: 6,
+              padding: '2px 4px',
+              marginLeft: -4
+            }}
+          >
+            {boardName}
+          </h2>
+        )}
       </div>
 
       <DndContext
@@ -562,12 +669,12 @@ export default function Board({ boardId, boardName }: BoardProps) {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden' }}>
+        <div data-task-board-scroll style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden' }}>
           <SortableContext 
             items={listIds} 
             strategy={horizontalListSortingStrategy}
           >
-            <div style={{ display: 'flex', gap: 20, height: '100%', paddingBottom: 16 }}>
+            <div data-task-board-columns style={{ display: 'flex', gap: 20, height: '100%', paddingBottom: 16 }}>
               {lists
                 .filter(list => listIds.includes(list.id)) // Only render lists that are in SortableContext
                 .map((list, index) => (
