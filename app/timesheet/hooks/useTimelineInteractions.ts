@@ -35,7 +35,12 @@ export interface UseTimelineInteractionsParams {
     React.SetStateAction<{ [week: string]: any }>
   >
   justSubmittedRef: React.MutableRefObject<boolean>
-  toast: { success: (msg: string) => void; error: (msg: string) => void; info: (msg: string) => void }
+  toast: {
+    success: (msg: string) => void
+    error: (msg: string) => void
+    info: (msg: string) => void
+    warning: (msg: string) => void
+  }
   getLocalDateString: (d: Date) => string
   setWeekStart: (d: Date) => void
 }

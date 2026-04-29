@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useApiData } from '../lib/hooks/useApiData'
+import { jobSummaryHours } from '../lib/utils/timesheetSummary'
 
 function ViewCurrentContent() {
   const router = useRouter()
@@ -170,9 +171,8 @@ function ViewCurrentContent() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(timesheet.summary.jobs).map(([job, hours]: [string, any]) => {
-                  // Ensure hours is a number before calling toFixed
-                  const hoursNum = typeof hours === 'number' ? hours : parseFloat(hours) || 0;
+                {Object.entries(timesheet.summary.jobs).map(([job, hours]: [string, unknown]) => {
+                  const hoursNum = jobSummaryHours(hours)
                   return (
                     <tr key={job}>
                       <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>{job}</td>
@@ -181,6 +181,14 @@ function ViewCurrentContent() {
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td style={{ padding: '10px 12px', borderTop: '2px solid var(--border)', fontWeight: 700 }}>Total</td>
+                  <td style={{ padding: '10px 12px', borderTop: '2px solid var(--border)', textAlign: 'right', fontWeight: 700 }}>
+                    {Object.values(timesheet.summary.jobs).reduce((sum: number, h: unknown) => sum + jobSummaryHours(h), 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

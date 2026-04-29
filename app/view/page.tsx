@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useApiData } from '../lib/hooks/useApiData'
+import { jobSummaryHours } from '../lib/utils/timesheetSummary'
 
 function ViewContent() {
   const router = useRouter()
@@ -155,8 +156,8 @@ function ViewContent() {
           }}>
             <h3 style={{ margin: '0 0 12px 0' }}>Job Summary</h3>
             <div style={{ display: 'grid', gap: 8 }}>
-              {Object.entries(timesheet.summary.jobs).map(([jobNumber, hours]: [string, any]) => {
-                const hoursNum = typeof hours === 'number' ? hours : parseFloat(hours) || 0;
+              {Object.entries(timesheet.summary.jobs).map(([jobNumber, hours]: [string, unknown]) => {
+                const hoursNum = jobSummaryHours(hours)
                 return (
                   <div key={jobNumber} style={{ 
                     display: 'flex', 
@@ -170,6 +171,19 @@ function ViewContent() {
                   </div>
                 );
               })}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '10px 12px',
+                marginTop: 4,
+                borderTop: '2px solid var(--border)',
+                fontWeight: 700,
+              }}>
+                <span>Total</span>
+                <span>
+                  {Object.values(timesheet.summary.jobs).reduce((sum: number, h: unknown) => sum + jobSummaryHours(h), 0).toFixed(2)} hours
+                </span>
+              </div>
             </div>
           </div>
         )}
