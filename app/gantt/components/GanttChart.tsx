@@ -26,6 +26,39 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
   const toast = useToast()
   const { user } = useUser()
   const timelineRef = useRef<HTMLDivElement>(null)
+  const taskListScrollRef = useRef<HTMLDivElement>(null)
+  const timelineScrollRef = useRef<HTMLDivElement>(null)
+  const syncingVerticalScrollRef = useRef(false)
+
+  const syncTimelineScrollTop = useCallback((scrollTop: number) => {
+    const el = timelineScrollRef.current
+    if (!el || syncingVerticalScrollRef.current) return
+    syncingVerticalScrollRef.current = true
+    el.scrollTop = scrollTop
+    syncingVerticalScrollRef.current = false
+  }, [])
+
+  const syncTaskListScrollTop = useCallback((scrollTop: number) => {
+    const el = taskListScrollRef.current
+    if (!el || syncingVerticalScrollRef.current) return
+    syncingVerticalScrollRef.current = true
+    el.scrollTop = scrollTop
+    syncingVerticalScrollRef.current = false
+  }, [])
+
+  const onTaskListScroll = useCallback(() => {
+    const left = taskListScrollRef.current
+    const right = timelineScrollRef.current
+    if (!left || !right || syncingVerticalScrollRef.current) return
+    if (right.scrollTop !== left.scrollTop) syncTimelineScrollTop(left.scrollTop)
+  }, [syncTimelineScrollTop])
+
+  const onTimelineScroll = useCallback(() => {
+    const left = taskListScrollRef.current
+    const right = timelineScrollRef.current
+    if (!left || !right || syncingVerticalScrollRef.current) return
+    if (left.scrollTop !== right.scrollTop) syncTaskListScrollTop(right.scrollTop)
+  }, [syncTaskListScrollTop])
   
   // Calculate total days for 6 months ahead
   const totalDays = useMemo(() => {
@@ -498,15 +531,17 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
         overflow: 'hidden'
       }}
     >
-      <div style={{ display: 'flex', position: 'relative', overflow: 'hidden', flex: 1 }}>
+      <div data-gantt-chart-body style={{ display: 'flex', position: 'relative', overflow: 'hidden', flex: 1 }}>
         {/* Sticky left column for task names */}
-        <div style={{ 
+        <div
+          data-gantt-task-column
+          style={{ 
           position: 'relative',
           zIndex: 10, 
           background: 'var(--surface)',
           borderRight: '2px solid var(--border)',
-          minWidth: 400,
-          width: 400,
+          minWidth: 600,
+          width: 600,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
@@ -541,8 +576,13 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
             </div>
           </div>
           
-          {/* Scrollable task rows */}
-          <div style={{ overflowY: 'auto', flex: 1, margin: 0, padding: 0 }}>
+          {/* Scrollable task rows (vertical scroll synced with timeline) */}
+          <div
+            ref={taskListScrollRef}
+            data-gantt-task-scroll
+            onScroll={onTaskListScroll}
+            style={{ overflowY: 'auto', flex: 1, margin: 0, padding: 0, minHeight: 0 }}
+          >
             {tasks.map((task, idx) => {
               const assignee = users.find(u => u.id === task.assignee_id)
               const startDate = task.start_date ? new Date(task.start_date).toLocaleDateString('en-GB') : ''
@@ -646,8 +686,13 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
           </div>
         </div>
         
-        {/* Scrollable timeline */}
-        <div style={{ overflow: 'auto', flex: 1, position: 'relative', margin: 0, padding: 0 }}>
+        {/* Scrollable timeline (horizontal + vertical; vertical synced with task list) */}
+        <div
+          ref={timelineScrollRef}
+          data-gantt-timeline-scroll
+          onScroll={onTimelineScroll}
+          style={{ overflow: 'auto', flex: 1, position: 'relative', margin: 0, padding: 0, minHeight: 0 }}
+        >
           <GanttTimelineHeader monthStart={monthStart} totalDays={totalDays} />
           
           <div style={{ position: 'relative', margin: 0, padding: 0 }}>

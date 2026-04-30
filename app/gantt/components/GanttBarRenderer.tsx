@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { getDateForDay, parseLocalDateString, getDayIndex } from '../../lib/utils/dateUtils'
-import { EDGE_THRESHOLD } from '../../lib/constants/gantt'
+import { EDGE_THRESHOLD, ROW_HEIGHT } from '../../lib/constants/gantt'
 
 interface GanttBarRendererProps {
   task: any
@@ -41,15 +41,18 @@ function GanttBarRenderer({
   // Get task color or use default accent color
   const taskColor = task.color || 'var(--accent-primary)'
   const percentComplete = task.percent_complete || 0
-  
+
+  const barMarginY = Math.max(2, Math.round((ROW_HEIGHT / 60) * 4))
+  const barHeight = ROW_HEIGHT - barMarginY * 2
+
   return (
     <div
       style={{
         position: 'absolute',
         left: `${leftPercent}%`,
         width: `${widthPercent}%`,
-        top: '4px',
-        height: '52px',
+        top: `${barMarginY}px`,
+        height: `${barHeight}px`,
         background: taskColor,
         border: `2px solid ${taskColor}`,
         borderRadius: 6,

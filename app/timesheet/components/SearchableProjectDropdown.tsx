@@ -9,6 +9,15 @@ export interface SearchableProjectDropdownProps {
   placeholder?: string
   style?: React.CSSProperties
   recentJobs?: { jobNumber: string; title: string }[]
+  /**
+   * `jobCode`: value/onChange use job number (`code`, falling back to `id` string) — timesheet default.
+   * `id`: value/onChange use project UUID — e.g. Gantt routes/APIs.
+   */
+  valueMode?: 'jobCode' | 'id'
+  /** When true (default), only projects with a non-empty `code` appear. Set false to include all projects (e.g. Gantt). */
+  requireJobCode?: boolean
+  /** Show a control to clear the current value (e.g. Gantt “no project” state). */
+  allowClear?: boolean
 }
 
 export default function SearchableProjectDropdown({
@@ -18,26 +27,36 @@ export default function SearchableProjectDropdown({
   placeholder,
   style,
   recentJobs,
+  valueMode = 'jobCode',
+  requireJobCode = true,
+  allowClear = false,
 }: SearchableProjectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  const projectsWithCodes = useMemo(
-    () => projects.filter((p) => (p.code || '').toString().trim() !== ''),
-    [projects]
-  )
+  const projectsBase = useMemo(() => {
+    if (!requireJobCode) return projects
+    return projects.filter((p) => (p.code || '').toString().trim() !== '')
+  }, [projects, requireJobCode])
+
   const filteredProjects = useMemo(() => {
-    if (!searchTerm.trim()) return projectsWithCodes
+    if (!searchTerm.trim()) return projectsBase
     const term = searchTerm.toLowerCase()
-    return projectsWithCodes.filter((p) => {
-      const code = (p.code || p.id || '').toString().toLowerCase()
+    return projectsBase.filter((p) => {
       const name = (p.name || '').toString().toLowerCase()
       const client = ((p.client_name || p.clientName || '')).toString().toLowerCase()
-      return code.includes(term) || name.includes(term) || client.includes(term)
+      if (name.includes(term) || client.includes(term)) return true
+      if (valueMode === 'jobCode') {
+        const legacy = (p.code || p.id || '').toString().toLowerCase()
+        return legacy.includes(term)
+      }
+      const code = (p.code || '').toString().toLowerCase()
+      const idStr = (p.id || '').toString().toLowerCase()
+      return code.includes(term) || idStr.includes(term)
     })
-  }, [projectsWithCodes, searchTerm])
+  }, [projectsBase, searchTerm, valueMode])
 
   useEffect(() => {
     if (!isOpen) return
@@ -57,14 +76,24 @@ export default function SearchableProjectDropdown({
 
   const displayValue = useMemo(() => {
     if (!value) return ''
-    const project = projects.find((p) => (p.code || p.id || '').toString() === value)
+    const project =
+      valueMode === 'id'
+        ? projects.find((p) => String(p.id) === String(value))
+        : projects.find((p) => (p.code || p.id || '').toString() === value)
     if (project) {
-      const code = (project.code || project.id || '').toString()
+      const jobNumber = (project.code || '').toString().trim()
       const name = (project.name || '').toString().trim()
+      if (valueMode === 'id') {
+        if (jobNumber && name) return `${jobNumber} – ${name}`
+        if (name) return name
+        if (jobNumber) return jobNumber
+        return 'Project'
+      }
+      const code = (project.code || project.id || '').toString()
       return name ? `${code} – ${name}` : code
     }
     return value
-  }, [value, projects])
+  }, [value, projects, valueMode])
 
   const openPopup = () => {
     setIsOpen(true)
@@ -72,8 +101,11 @@ export default function SearchableProjectDropdown({
   }
 
   const handleSelect = (project: any) => {
-    const code = (project.code || project.id || '').toString()
-    onChange(code)
+    const next =
+      valueMode === 'id'
+        ? String(project.id ?? '')
+        : (project.code || project.id || '').toString()
+    onChange(next)
     setIsOpen(false)
     setSearchTerm('')
   }
@@ -204,7 +236,7 @@ export default function SearchableProjectDropdown({
               />
             </div>
 
-            {recentJobs && recentJobs.length > 0 && (
+            {valueMode === 'jobCode' && recentJobs && recentJobs.length > 0 && (
               <div style={{ padding: '0 12px 8px' }}>
                 <div
                   style={{
@@ -226,7 +258,7 @@ export default function SearchableProjectDropdown({
                         type="button"
                         onClick={() => {
                           const project =
-                            projectsWithCodes.find(
+                            projectsBase.find(
                               (p) => (p.code || p.id || '').toString() === jobNumber
                             ) || null
                           if (project) {
@@ -279,6 +311,32 @@ export default function SearchableProjectDropdown({
                 maxHeight: 400,
               }}
             >
+              {allowClear && !!value && (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    onChange('')
+                    closePopup()
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onChange('')
+                      closePopup()
+                    }
+                  }}
+                  style={{
+                    padding: '12px 16px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-secondary)',
+                    fontSize: 14,
+                  }}
+                >
+                  Clear selection
+                </div>
+              )}
               {filteredProjects.length === 0 ? (
                 <div
                   style={{
@@ -290,17 +348,23 @@ export default function SearchableProjectDropdown({
                 >
                   {searchTerm.trim()
                     ? 'No projects match your search.'
-                    : 'No projects with job numbers.'}
+                    : requireJobCode
+                      ? 'No projects with job numbers.'
+                      : 'No projects.'}
                 </div>
               ) : (
                 filteredProjects.map((project) => {
-                  const code = (project.code || project.id || '').toString()
+                  const jobNumber = (project.code || '').toString().trim()
                   const name = project.name || ''
                   const client = project.client_name || project.clientName || ''
-                  const isSelected = code === value
+                  const rowKey = project.id || jobNumber || name
+                  const isSelected =
+                    valueMode === 'id'
+                      ? String(project.id) === String(value)
+                      : (project.code || project.id || '').toString() === value
                   return (
                     <div
-                      key={project.id || code}
+                      key={rowKey}
                       onClick={() => handleSelect(project)}
                       style={{
                         padding: '12px 16px',
@@ -331,17 +395,23 @@ export default function SearchableProjectDropdown({
                           flexWrap: 'wrap',
                         }}
                       >
-                        <span>{code}</span>
-                        {name && (
-                          <span
-                            style={{
-                              color: 'var(--text-secondary)',
-                              fontWeight: 400,
-                              fontSize: 13,
-                            }}
-                          >
-                            {name}
-                          </span>
+                        {jobNumber ? (
+                          <>
+                            <span>{jobNumber}</span>
+                            {name && (
+                              <span
+                                style={{
+                                  color: 'var(--text-secondary)',
+                                  fontWeight: 400,
+                                  fontSize: 13,
+                                }}
+                              >
+                                {name}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span>{name || 'Untitled project'}</span>
                         )}
                       </div>
                       {client && (
