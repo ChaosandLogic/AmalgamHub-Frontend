@@ -6,6 +6,7 @@ import ResourceSchedule from './components/ResourceSchedule'
 import { normalizeToMidnight } from '../lib/utils/dateUtils'
 import { useUser } from '../lib/hooks/useUser'
 import { apiGet } from '../lib/api/client'
+import { EXCLUDED_SCHEDULE_EMAILS } from '../lib/constants/schedule'
 
 export default function SchedulePage() {
   const router = useRouter()
@@ -82,8 +83,17 @@ export default function SchedulePage() {
     try {
       const data = await apiGet<{ resources: any[] }>('/api/resources')
       const apiResources = data.resources || []
+      // Hide system / service accounts (e.g. the platform admin) from the
+      // schedule so they don't appear as bookable resources.
+      const excluded = new Set(
+        EXCLUDED_SCHEDULE_EMAILS.map(e => e.toLowerCase())
+      )
+      const visibleResources = apiResources.filter((r: any) => {
+        const email = (r?.email ?? '').toString().toLowerCase()
+        return !email || !excluded.has(email)
+      })
       // If no resources exist yet, fall back to some sample resources
-      setResources(apiResources.length > 0 ? apiResources : sampleResources)
+      setResources(visibleResources.length > 0 ? visibleResources : sampleResources)
     } catch {
       // On error, still show sample resources so the schedule is usable
       setResources(sampleResources)
