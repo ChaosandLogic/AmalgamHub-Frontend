@@ -795,14 +795,21 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
     }
   }
 
+  // Keep latest handlers in a ref so the global listeners are attached only
+  // once on mount (instead of re-attaching on every render with no deps array).
+  const handlersRef = useRef({ onMouseMove, onMouseUp })
+  handlersRef.current = { onMouseMove, onMouseUp }
+
   useEffect(() => {
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
+    const move = (e: MouseEvent) => handlersRef.current.onMouseMove(e)
+    const up = () => handlersRef.current.onMouseUp()
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
     return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
     }
-  })
+  }, [])
 
   // Sync vertical scrolling between left column and timeline
   const syncScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {

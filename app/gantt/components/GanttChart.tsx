@@ -145,6 +145,9 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
   }, [])
 
   // Load tasks
+  // Note: `toast` is intentionally excluded from deps. Including it would cause
+  // an infinite refetch loop on API failure (toast.error → ToastProvider re-render
+  // → new toast ref → loadTasks recreated → useEffect refires → fetch again).
   const loadTasks = useCallback(async () => {
     try {
       const params = new URLSearchParams()
@@ -156,7 +159,8 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
       console.error('Error loading tasks:', error)
       toast.error('Failed to load tasks')
     }
-  }, [projectId, toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   useEffect(() => {
     loadTasks()

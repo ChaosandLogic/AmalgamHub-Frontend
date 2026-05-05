@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useMemo, useState, useCallback, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, XCircle, AlertTriangle, Info, MessageCircle, X } from 'lucide-react'
 import styles from './Toast.module.css'
@@ -67,6 +67,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const info = useCallback((message: string) => showToast(message, 'info'), [showToast])
   const warning = useCallback((message: string) => showToast(message, 'warning'), [showToast])
 
+  // Stable context value: callers that include `toast` in useEffect/useCallback
+  // deps must not see a new reference every render, or they'll fire infinitely.
+  const contextValue = useMemo<ToastContextType>(
+    () => ({ showToast, success, error, info, warning, showNotificationToast }),
+    [showToast, success, error, info, warning, showNotificationToast]
+  )
+
   const getToastClass = (type: ToastType) => {
     const typeClasses: Record<ToastType, string> = {
       success: styles.toastSuccess,
@@ -98,7 +105,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ToastContext.Provider value={{ showToast, success, error, info, warning, showNotificationToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       
       <div className={styles.container}>

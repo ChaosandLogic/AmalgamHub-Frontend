@@ -110,6 +110,9 @@ export default function Board({ boardId, boardName, onBoardRenamed }: BoardProps
   // Create a stable empty array reference to avoid dependency array size changes
   const emptySensors = useMemo(() => [], [])
 
+  // Note: `toast` is intentionally excluded from deps. Including it would cause
+  // an infinite refetch loop on API failure (toast.error → ToastProvider re-render
+  // → new toast ref → loadBoard recreated → useEffect refires → fetch again).
   const loadBoard = useCallback(async () => {
     try {
       const data = await apiGet<{ board: { lists: TaskList[] } }>(`/api/tasks/boards/${boardId}`, { defaultErrorMessage: 'Failed to load board' })
@@ -120,7 +123,8 @@ export default function Board({ boardId, boardName, onBoardRenamed }: BoardProps
     } finally {
       setLoading(false)
     }
-  }, [boardId, toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId])
 
   useEffect(() => {
     loadBoard()
