@@ -49,6 +49,8 @@ interface TaskCard {
   created_at: string
   updated_at: string
   archived: number
+  /** 1 / true when the card has been ticked off; renders the title with a strike-through. */
+  completed?: number | boolean
   project_id?: string
   resource_id?: string
   labels?: TaskLabel[]

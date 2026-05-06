@@ -1,7 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useToast } from '../../components/Toast'
-import { Calendar, Users, Paperclip } from 'lucide-react'
+import { Calendar, Users, Paperclip, Check } from 'lucide-react'
+import { apiPut } from '../../lib/api/client'
 import CardDialog from './CardDialog'
 
 interface TaskCard {
@@ -15,6 +16,8 @@ interface TaskCard {
   created_at: string
   updated_at: string
   archived: number
+  /** 1 / true when the card has been ticked off; renders the title with a strike-through. */
+  completed?: number | boolean
   project_id?: string
   resource_id?: string
   labels?: TaskLabel[]
@@ -55,6 +58,35 @@ interface CardProps {
 export default function Card({ card, onUpdate, isDragging = false }: CardProps) {
   const toast = useToast()
   const [showDialog, setShowDialog] = useState(false)
+  // Optimistic override of `card.completed` so the tick feels instant while the
+  // PUT is in flight. Cleared whenever the parent passes a fresh card payload.
+  const [completedOverride, setCompletedOverride] = useState<boolean | null>(null)
+  const [savingCompleted, setSavingCompleted] = useState(false)
+
+  const serverCompleted = !!card.completed
+  const isCompleted = completedOverride !== null ? completedOverride : serverCompleted
+
+  useEffect(() => {
+    setCompletedOverride(null)
+  }, [serverCompleted, card.id, card.updated_at])
+
+  async function toggleCompleted(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (savingCompleted) return
+    const next = !isCompleted
+    setCompletedOverride(next)
+    setSavingCompleted(true)
+    try {
+      await apiPut(`/api/tasks/cards/${card.id}`, { completed: next })
+      onUpdate()
+    } catch (err) {
+      console.error('Failed to toggle completed:', err)
+      setCompletedOverride(null)
+      toast.error('Failed to update task')
+    } finally {
+      setSavingCompleted(false)
+    }
+  }
 
   function formatDate(dateStr: string) {
     if (!dateStr) return ''
@@ -133,9 +165,58 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
           </div>
         )}
 
-        {/* Title */}
-        <div style={{ marginBottom: 4, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3 }}>
-          {card.title}
+        {/* Title row with completion tick */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <button
+            type="button"
+            onClick={toggleCompleted}
+            aria-label={isCompleted ? 'Mark task as not done' : 'Mark task as done'}
+            aria-pressed={isCompleted}
+            title={isCompleted ? 'Mark as not done' : 'Mark as done'}
+            style={{
+              flexShrink: 0,
+              marginTop: 1,
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              border: `1.5px solid ${isCompleted ? 'var(--success)' : 'var(--border-strong, var(--border))'}`,
+              background: isCompleted ? 'var(--success)' : 'transparent',
+              color: '#fff',
+              padding: 0,
+              cursor: savingCompleted ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.15s ease, border-color 0.15s ease',
+              opacity: savingCompleted ? 0.7 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isCompleted) {
+                e.currentTarget.style.borderColor = 'var(--success)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isCompleted) {
+                e.currentTarget.style.borderColor = 'var(--border-strong, var(--border))'
+              }
+            }}
+          >
+            {isCompleted && <Check size={12} strokeWidth={3} />}
+          </button>
+          <div
+            style={{
+              flex: 1,
+              fontSize: 14,
+              fontWeight: 500,
+              color: isCompleted ? 'var(--text-secondary)' : 'var(--text-primary)',
+              lineHeight: 1.3,
+              textDecoration: isCompleted ? 'line-through' : 'none',
+              opacity: isCompleted ? 0.7 : 1,
+              transition: 'color 0.15s ease, opacity 0.15s ease',
+            }}
+          >
+            {card.title}
+          </div>
         </div>
 
         {/* Image attachment preview */}
