@@ -67,7 +67,7 @@ export default function AdminPage() {
         `payroll_week_${weekKey}_${selectedMonth}.xlsx`
       )
     } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to download payroll export')
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to download hours export')
     }
   }
 
@@ -177,10 +177,10 @@ export default function AdminPage() {
                   alignItems: 'center',
                   gap: 6,
                 }}
-                title="Download payroll Excel for the selected week, plus a Monthly job hours sheet for the selected month"
+                title="Download hours Excel for the selected week, plus a Monthly job hours sheet for the selected month"
               >
                 <span style={{ fontSize: '16px' }}>📥</span>
-                Download payroll Excel
+                Download Hours
               </button>
             )}
             <button
