@@ -160,7 +160,7 @@ export default function AdminPage() {
             <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
               ({submittedUsers.size} of {users.length} submitted)
             </div>
-            {user?.payrollAccess === true && (
+            {user?.effectiveAdmin === true && (
               <button
                 type="button"
                 onClick={downloadWeeklyPayroll}
