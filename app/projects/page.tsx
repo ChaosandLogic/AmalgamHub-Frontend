@@ -408,7 +408,7 @@ export default function ProjectsPage() {
                           )}
                         </div>
                       </div>
-                      {(user?.role === 'admin' || user?.role === 'booker') && (
+                      {Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker') && (
                         <div style={{ display: 'flex', gap: 6 }}>
                           {/* Only show delete button for projects created in the app (not from FileMaker) */}
                           {project.id && String(project.id).startsWith('project-') && (

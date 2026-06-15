@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useToast } from '../../components/Toast'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import { X, Calendar, Tag, UserPlus, Save, Archive, Paperclip, Download, Trash2, Upload } from 'lucide-react'
-import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData, apiDownload } from '../../lib/api/client'
+import { X, Calendar, Tag, Archive, Paperclip, Download, Trash2, Upload, ListTodo, Plus } from 'lucide-react'
+import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData } from '../../lib/api/client'
 
 interface TaskCard {
   id: string
@@ -21,6 +21,13 @@ interface TaskCard {
   labels?: TaskLabel[]
   members?: TaskCardMember[]
   attachments?: TaskCardAttachment[]
+  checklist?: TaskChecklistItem[]
+}
+
+interface TaskChecklistItem {
+  id: string
+  text: string
+  done: boolean
 }
 
 interface TaskLabel {
@@ -56,6 +63,87 @@ interface TaskCardAttachment {
 interface CardDialogProps {
   cardId: string
   onClose: () => void
+  /** Called after a successful save so the board can refresh */
+  onSaved?: () => void
+}
+
+const AUTOSAVE_DEBOUNCE_MS = 650
+
+function serializeCardDraft(
+  t: string,
+  desc: string,
+  dd: string,
+  cl: TaskChecklistItem[]
+): string {
+  return JSON.stringify({
+    title: t.trim(),
+    description: desc ?? '',
+    dueDate: dd ?? '',
+    checklist: cl.map(({ id, text, done }) => ({ id, text, done })),
+  })
+}
+
+function isImageMimeType(mime: string | undefined) {
+  return typeof mime === 'string' && /^image\//i.test(mime)
+}
+
+function taskAttachmentDownloadPath(cardId: string, attachmentId: string) {
+  return `/api/tasks/attachments/${encodeURIComponent(cardId)}/${encodeURIComponent(attachmentId)}/download`
+}
+
+function newChecklistItemId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID().replace(/-/g, '')
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`.padEnd(32, '0').slice(0, 32)
+}
+
+function normalizeChecklistFromApi(raw: unknown): TaskChecklistItem[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((x): x is Record<string, unknown> => x != null && typeof x === 'object')
+    .map((x) => ({
+      id: typeof x.id === 'string' && x.id ? x.id : newChecklistItemId(),
+      text: typeof x.text === 'string' ? x.text : '',
+      done: !!x.done,
+    }))
+}
+
+function AttachmentImagePreview({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return null
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      title="Open image"
+      style={{
+        flexShrink: 0,
+        display: 'block',
+        borderRadius: 8,
+        overflow: 'hidden',
+        border: '1px solid var(--border)',
+        lineHeight: 0,
+        background: 'var(--bg-secondary)',
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        style={{
+          width: 96,
+          height: 96,
+          objectFit: 'cover',
+          display: 'block',
+        }}
+      />
+    </a>
+  )
 }
 
 const LABEL_COLORS = [
@@ -63,11 +151,11 @@ const LABEL_COLORS = [
   '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
 ]
 
-export default function CardDialog({ cardId, onClose }: CardDialogProps) {
+export default function CardDialog({ cardId, onClose, onSaved }: CardDialogProps) {
   const toast = useToast()
   const [card, setCard] = useState<TaskCard | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
@@ -75,6 +163,108 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
   const [presetLabels, setPresetLabels] = useState<PresetLabel[]>([])
   const [selectedLabelName, setSelectedLabelName] = useState<string>('')
   const [uploading, setUploading] = useState(false)
+  const [checklist, setChecklist] = useState<TaskChecklistItem[]>([])
+  /** After Enter on a line, focus the newly inserted row's text input */
+  const [checklistFocusId, setChecklistFocusId] = useState<string | null>(null)
+
+  const draftRef = useRef({ title: '', description: '', dueDate: '', checklist: [] as TaskChecklistItem[] })
+  const lastSavedSigRef = useRef('')
+  const hasBaselineRef = useRef(false)
+  const saveInFlightRef = useRef<Promise<boolean> | null>(null)
+  const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    draftRef.current = { title, description, dueDate, checklist }
+  }, [title, description, dueDate, checklist])
+
+  useLayoutEffect(() => {
+    if (loading || !card) return
+    if (!hasBaselineRef.current) {
+      hasBaselineRef.current = true
+      lastSavedSigRef.current = serializeCardDraft(title, description, dueDate, checklist)
+    }
+  }, [loading, card, title, description, dueDate, checklist])
+
+  const persistDraft = useCallback(
+    async (options?: { quietEmptyTitle?: boolean }): Promise<boolean> => {
+      if (saveInFlightRef.current) {
+        await saveInFlightRef.current.catch(() => {})
+      }
+      const cur = draftRef.current
+      if (!cur.title.trim()) {
+        if (!options?.quietEmptyTitle) {
+          toast.error('Title is required')
+        }
+        return false
+      }
+      const sigNow = serializeCardDraft(cur.title, cur.description, cur.dueDate, cur.checklist)
+      if (sigNow === lastSavedSigRef.current) {
+        return true
+      }
+
+      const promise = (async (): Promise<boolean> => {
+        setAutosaveStatus('saving')
+        try {
+          await apiPut(
+            `/api/tasks/cards/${cardId}`,
+            {
+              title: cur.title.trim(),
+              description: cur.description || null,
+              due_date: cur.dueDate || null,
+              checklist: cur.checklist.map(({ id, text, done }) => ({ id, text, done })),
+            },
+            { defaultErrorMessage: 'Failed to update card' }
+          )
+          lastSavedSigRef.current = serializeCardDraft(
+            cur.title,
+            cur.description,
+            cur.dueDate,
+            cur.checklist
+          )
+          setAutosaveStatus('saved')
+          onSaved?.()
+          if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current)
+          savedIndicatorTimerRef.current = setTimeout(() => setAutosaveStatus('idle'), 2200)
+          return true
+        } catch (error) {
+          console.error('Error saving card:', error)
+          setAutosaveStatus('error')
+          toast.error('Failed to save card')
+          return false
+        }
+      })()
+
+      saveInFlightRef.current = promise
+      const result = await promise
+      saveInFlightRef.current = null
+      return result
+    },
+    [cardId, onSaved, toast]
+  )
+
+  useEffect(() => {
+    if (loading || !card || !hasBaselineRef.current) return
+    const sig = serializeCardDraft(title, description, dueDate, checklist)
+    if (sig === lastSavedSigRef.current) return
+    if (!title.trim()) return
+
+    const t = window.setTimeout(() => {
+      void persistDraft({ quietEmptyTitle: true })
+    }, AUTOSAVE_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [title, description, dueDate, checklist, loading, card, persistDraft])
+
+  useEffect(() => {
+    return () => {
+      if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current)
+    }
+  }, [])
+
+  async function handleCloseRequest() {
+    const ok = await persistDraft()
+    if (!ok) return
+    onClose()
+  }
 
   // Handle keyboard events - prevent spacebar from closing dialog when typing
   // This must be called before any conditional returns to maintain hook order
@@ -112,6 +302,20 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
     loadPresetLabels()
   }, [cardId])
 
+  useEffect(() => {
+    if (!checklistFocusId) return
+    const escaped =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(checklistFocusId)
+        : checklistFocusId.replace(/"/g, '\\"')
+    const el = document.querySelector<HTMLInputElement>(`[data-checklist-text-id="${escaped}"]`)
+    if (el) {
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+    }
+    setChecklistFocusId(null)
+  }, [checklist, checklistFocusId])
+
   async function loadPresetLabels() {
     try {
       const data = await apiGet<{ labels: any[] }>('/api/tasks/labels')
@@ -122,6 +326,9 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
   }
 
   async function loadCard() {
+    hasBaselineRef.current = false
+    lastSavedSigRef.current = ''
+    setAutosaveStatus('idle')
     try {
       const data = await apiGet<{ card: any }>(`/api/tasks/cards/${cardId}`, { defaultErrorMessage: 'Failed to load card' })
       const card = data.card
@@ -130,35 +337,13 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
         setTitle(card.title)
         setDescription(card.description || '')
         setDueDate(card.due_date ? card.due_date.substring(0, 10) : '')
+        setChecklist(normalizeChecklistFromApi(card.checklist))
       }
     } catch (error) {
       console.error('Error loading card:', error)
       toast.error('Failed to load card')
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function saveCard() {
-    if (!title.trim()) {
-      toast.error('Title is required')
-      return
-    }
-
-    setSaving(true)
-    try {
-      await apiPut(`/api/tasks/cards/${cardId}`, {
-        title,
-        description: description || null,
-        due_date: dueDate || null
-      }, { defaultErrorMessage: 'Failed to update card' })
-      toast.success('Card updated')
-      onClose()
-    } catch (error) {
-      console.error('Error saving card:', error)
-      toast.error('Failed to save card')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -198,6 +383,7 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
     if (!confirm('Are you sure you want to archive this card? It will be hidden from the board.')) {
       return
     }
+    await persistDraft({ quietEmptyTitle: true })
     try {
       await apiDelete(`/api/tasks/cards/${cardId}`, { defaultErrorMessage: 'Failed to archive card' })
       toast.success('Card archived')
@@ -292,7 +478,7 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
         justifyContent: 'center',
         zIndex: 50
       }}
-      onClick={onClose}
+      onClick={() => void handleCloseRequest()}
     >
       <div
         style={{
@@ -307,10 +493,17 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, flex: 1 }}>Card Details</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Card Details</h2>
+            <div style={{ marginTop: 6, minHeight: 18, fontSize: 12, color: 'var(--text-tertiary)' }}>
+              {autosaveStatus === 'saving' && 'Saving…'}
+              {autosaveStatus === 'saved' && 'All changes saved'}
+              {autosaveStatus === 'error' && <span style={{ color: 'var(--error)' }}>Save failed — fix and try again</span>}
+            </div>
+          </div>
           <button
-            onClick={onClose}
+            onClick={() => void handleCloseRequest()}
             style={{
               padding: 4,
               background: 'transparent',
@@ -377,6 +570,130 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
             }}
             placeholder="Add a more detailed description..."
           />
+        </div>
+
+        {/* Checklist */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <ListTodo size={14} />
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Checklist</label>
+            {checklist.length > 0 && (
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                {checklist.filter(i => i.done).length}/{checklist.length} done
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {checklist.map((item, index) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 6,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={item.done}
+                  onChange={() => {
+                    setChecklist(prev =>
+                      prev.map((row, i) => (i === index ? { ...row, done: !row.done } : row))
+                    )
+                  }}
+                  style={{ flexShrink: 0, cursor: 'pointer', width: 16, height: 16 }}
+                  aria-label={item.done ? 'Mark item not done' : 'Mark item done'}
+                />
+                <input
+                  type="text"
+                  data-checklist-text-id={item.id}
+                  value={item.text}
+                  onChange={e => {
+                    const v = e.target.value
+                    setChecklist(prev =>
+                      prev.map((row, i) => (i === index ? { ...row, text: v } : row))
+                    )
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === ' ' || e.code === 'Space') {
+                      e.stopPropagation()
+                      return
+                    }
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const newId = newChecklistItemId()
+                      setChecklist(prev => {
+                        const next = prev.map((row, i) =>
+                          i === index ? { ...row, text: row.text.trimEnd() } : row
+                        )
+                        next.splice(index + 1, 0, { id: newId, text: '', done: false })
+                        return next
+                      })
+                      setChecklistFocusId(newId)
+                    }
+                  }}
+                  placeholder="Item text"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '6px 8px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    fontSize: 13,
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    textDecoration: item.done ? 'line-through' : 'none',
+                    opacity: item.done ? 0.75 : 1,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setChecklist(prev => prev.filter((_, i) => i !== index))}
+                  style={{
+                    flexShrink: 0,
+                    padding: 4,
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Remove item"
+                  aria-label="Remove checklist item"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setChecklist(prev => [...prev, { id: newChecklistItemId(), text: '', done: false }])
+            }
+            style={{
+              marginTop: 8,
+              padding: '6px 12px',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontSize: 13,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Plus size={14} />
+            Add item
+          </button>
         </div>
 
         {/* Due Date */}
@@ -563,20 +880,27 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
           {/* Existing Attachments */}
           {card.attachments && card.attachments.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              {card.attachments.map(attachment => (
+              {card.attachments.map(attachment => {
+                const downloadHref = taskAttachmentDownloadPath(cardId, attachment.id)
+                const showThumb = isImageMimeType(attachment.mime_type)
+                return (
                 <div
                   key={attachment.id}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
+                    gap: 12,
                     padding: '8px 10px',
                     background: 'var(--bg-secondary)',
                     borderRadius: 6,
                     fontSize: 13
                   }}
                 >
-                  <Paperclip size={14} style={{ flexShrink: 0, color: 'var(--text-secondary)' }} />
+                  {showThumb ? (
+                    <AttachmentImagePreview src={downloadHref} alt={attachment.original_filename} />
+                  ) : (
+                    <Paperclip size={14} style={{ flexShrink: 0, color: 'var(--text-secondary)' }} />
+                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {attachment.original_filename}
@@ -586,7 +910,7 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
                     </div>
                   </div>
                   <a
-                    href={attachment.path}
+                    href={downloadHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
@@ -621,7 +945,8 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
                     <Trash2 size={14} />
                   </button>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -677,39 +1002,20 @@ export default function CardDialog({ cardId, onClose }: CardDialogProps) {
             <Archive size={16} />
             Archive
           </button>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '10px 20px',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                background: 'var(--surface)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveCard}
-              disabled={!title.trim() || saving}
-              style={{
-                padding: '10px 20px',
-                border: 'none',
-                borderRadius: 6,
-                background: title.trim() && !saving ? 'var(--success)' : 'var(--text-tertiary)',
-                color: 'white',
-                cursor: title.trim() && !saving ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
-            >
-              <Save size={16} />
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void handleCloseRequest()}
+            style={{
+              padding: '10px 20px',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

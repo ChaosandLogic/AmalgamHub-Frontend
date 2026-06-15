@@ -82,7 +82,9 @@ export default function Header() {
             >
               Tasks
             </Link>
-            {(user.role === 'admin' || user.role === 'booker') && (
+            {(user.bookerOrAdminAccess === true ||
+              user.role === 'admin' ||
+              user.role === 'booker') && (
               <>
                 <Link 
                   href="/gantt" 
@@ -129,7 +131,7 @@ export default function Header() {
             >
               Settings
             </Link>
-            {user?.role === 'admin' && (
+            {(user?.effectiveAdmin === true || user?.role === 'admin') && (
               <Link 
                 href="/admin" 
                 className={`${styles.navLink} ${isActive('/admin') ? styles.navLinkActive : ''}`}

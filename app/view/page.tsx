@@ -5,6 +5,18 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useApiData } from '../lib/hooks/useApiData'
 import { jobSummaryHours } from '../lib/utils/timesheetSummary'
+import TimesheetReadOnlyTimeline from '../timesheet/components/TimesheetReadOnlyTimeline'
+
+function weekStartKey(ts: Record<string, unknown>): string {
+  const w = ts.weekStartDate ?? ts.week_start_date
+  if (!w) return new Date().toISOString().slice(0, 10)
+  if (typeof w === 'string') return w.slice(0, 10)
+  try {
+    return new Date(w as string | number | Date).toISOString().slice(0, 10)
+  } catch {
+    return new Date().toISOString().slice(0, 10)
+  }
+}
 
 function ViewContent() {
   const router = useRouter()
@@ -16,6 +28,9 @@ function ViewContent() {
     timesheetId ? `/api/timesheets/${timesheetId}` : null,
     { transform: (raw: any) => raw?.timesheet ?? null }
   )
+
+  const { data: globalSettings } = useApiData<any>('/api/global-settings')
+  const overtimeEnabled = globalSettings?.settings?.overtime_enabled !== false
 
   const getReturnPath = () => {
     if (from === 'history') return '/history'
@@ -87,8 +102,8 @@ function ViewContent() {
     )
   }
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-  
+  const weekKey = weekStartKey(timesheet)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Header />
@@ -188,92 +203,12 @@ function ViewContent() {
           </div>
         )}
 
-        {/* Daily Breakdown */}
-        <div style={{ 
-          border: '1px solid var(--border)', 
-          borderRadius: 12, 
-          padding: 16 
-        }}>
-          <h3 style={{ margin: '0 0 16px 0' }}>Daily Breakdown</h3>
-          <div style={{ display: 'grid', gap: 16 }}>
-            {timesheet.days?.map((dayData: any[], dayIndex: number) => {
-              const dayJobs = dayData.filter(job => job.jobNumber && job.totalHours > 0)
-              const dayTotal = dayJobs.reduce((sum, job) => {
-                const hours = typeof job.totalHours === 'number' ? job.totalHours : parseFloat(job.totalHours) || 0;
-                return sum + hours;
-              }, 0)
-              
-              return (
-                <div key={dayIndex} style={{ 
-                  border: '1px solid var(--border)', 
-                  borderRadius: 8, 
-                  padding: 12,
-                  background: 'var(--bg-secondary)'
-                }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    marginBottom: 8 
-                  }}>
-                    <h4 style={{ margin: 0, fontSize: '16px' }}>{days[dayIndex]}</h4>
-                    <span style={{ 
-                      fontWeight: 'bold', 
-                      color: 'var(--primary)',
-                      fontSize: '14px'
-                    }}>
-                      {dayTotal.toFixed(2)} hours
-                    </span>
-                  </div>
-                  
-                  {dayJobs.length > 0 ? (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      {dayJobs.map((job, jobIndex) => {
-                        const jobHours = typeof job.totalHours === 'number' ? job.totalHours : parseFloat(job.totalHours) || 0;
-                        return (
-                          <div key={jobIndex} style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            padding: '6px 8px', 
-                            background: 'var(--surface)', 
-                            borderRadius: 4,
-                            fontSize: '14px'
-                          }}>
-                            <span>{job.jobNumber}</span>
-                            <span>{jobHours.toFixed(2)}h</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div style={{ 
-                      color: 'var(--text-tertiary)', 
-                      fontSize: '14px', 
-                      fontStyle: 'italic' 
-                    }}>
-                      No hours logged
-                    </div>
-                  )}
-                  {/* Per-day notes */}
-                  {(timesheet.dayNotes && timesheet.dayNotes[dayIndex]?.trim()) ? (
-                    <div style={{ 
-                      marginTop: 10, 
-                      paddingTop: 10, 
-                      borderTop: '1px solid var(--border)',
-                      fontSize: '13px',
-                      color: 'var(--text-secondary)',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word'
-                    }}>
-                      <strong style={{ color: 'var(--text-primary)' }}>Notes:</strong>{' '}
-                      {timesheet.dayNotes[dayIndex].trim()}
-                    </div>
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <TimesheetReadOnlyTimeline
+          days={timesheet.days}
+          dayNotes={timesheet.dayNotes ?? timesheet.day_notes}
+          weekStartDate={weekKey}
+          overtimeEnabled={overtimeEnabled}
+        />
       </div>
     </div>
   )

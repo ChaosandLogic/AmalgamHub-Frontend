@@ -308,23 +308,26 @@ export function serializeTimesheet(
   const summary: any = { jobs: {}, totalHours: 0, standardHours: 0, overtimeHours: 0 }
   const days = rowsByDay.map((rows) => {
     return rows.map((r: any) => {
-      const jobNumber = r.jobNumber || ''
+      const jobPrefix = r.jobPrefix != null ? String(r.jobPrefix) : ''
+      const jobNumber = r.jobNumber != null ? String(r.jobNumber) : ''
+      const fullCode = `${jobPrefix}${jobNumber}`.trim()
       const totalHours = r.slots.filter(Boolean).length * 0.25
       const types = r.slotEntryTypes || Array(r.slots.length).fill('')
       const overtimeSlots = types.filter((t: string) => t === 'overtime' || t === 'extra-overtime').length
       const overtimeHours = overtimeEnabled ? overtimeSlots * 0.25 : 0
 
-      if (jobNumber) {
-        if (!summary.jobs[jobNumber]) {
-          summary.jobs[jobNumber] = { totalHours: 0, overtimeHours: 0, standardHours: 0 }
+      if (fullCode) {
+        if (!summary.jobs[fullCode]) {
+          summary.jobs[fullCode] = { totalHours: 0, overtimeHours: 0, standardHours: 0 }
         }
-        summary.jobs[jobNumber].totalHours += totalHours
-        summary.jobs[jobNumber].overtimeHours += overtimeHours
-        summary.jobs[jobNumber].standardHours += Math.max(0, totalHours - overtimeHours)
+        summary.jobs[fullCode].totalHours += totalHours
+        summary.jobs[fullCode].overtimeHours += overtimeHours
+        summary.jobs[fullCode].standardHours += Math.max(0, totalHours - overtimeHours)
         summary.totalHours += totalHours
       }
 
       return {
+        jobPrefix,
         jobNumber,
         s: slotsToBase64(r.slots, FULL_DAY_SLOTS),
         slotCount: FULL_DAY_SLOTS,

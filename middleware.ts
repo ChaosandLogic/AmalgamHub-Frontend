@@ -67,9 +67,11 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Check admin access for admin routes
+    // Admin routes: DB admin, payroll env email, or legacy checks
     if (ADMIN_PATHS.has(pathname) || pathname.startsWith('/admin/')) {
-      if (user?.role !== 'admin') {
+      const adminOk =
+        user?.effectiveAdmin === true || user?.role === 'admin'
+      if (!adminOk) {
         const url = req.nextUrl.clone()
         url.pathname = DEFAULT_DASHBOARD_ROUTE
         return NextResponse.redirect(url)

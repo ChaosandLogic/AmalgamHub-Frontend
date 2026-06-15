@@ -9,6 +9,7 @@ import {
   getSegments,
   getSegmentAt,
 } from '../lib/timesheetUtils'
+import { fullJobCode } from '../lib/jobPrefixUtils'
 import { apiPost, apiPut } from '../../lib/api/client'
 
 export type SelectedSegment = {
@@ -433,8 +434,8 @@ export function useTimelineInteractions({
         const jobsInSlot: string[] = []
         dayRows.forEach((row: any) => {
           if (row.slots[slotIndex]) {
-            const jobNumber = row.jobNumber?.trim() || ''
-            if (jobNumber) jobsInSlot.push(jobNumber)
+            const jc = fullJobCode(row)
+            if (jc) jobsInSlot.push(jc)
           }
         })
         if (jobsInSlot.length > 1) {

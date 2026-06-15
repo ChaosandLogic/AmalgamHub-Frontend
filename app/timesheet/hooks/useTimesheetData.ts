@@ -14,6 +14,7 @@ import {
   serializeTimesheet,
   todayIndexForWeek,
 } from '../lib/timesheetUtils'
+import { fullJobCode } from '../lib/jobPrefixUtils'
 
 /** List endpoint can return a row without `days` if enrichment failed; fetch by id in that case. */
 function submittedTimesheetNeedsFullFetch(ts: any): boolean {
@@ -24,7 +25,7 @@ function submittedTimesheetNeedsFullFetch(ts: any): boolean {
     (day: any) =>
       Array.isArray(day) &&
       day.some((row: any) => {
-        const j = row?.jobNumber != null ? String(row.jobNumber).trim() : ''
+        const j = fullJobCode(row)
         return j.length > 0 || (Number(row?.totalHours) > 0)
       })
   )
@@ -67,6 +68,7 @@ export function useTimesheetData({
   function createEmptyRow(total: number, id: number): RowData {
     return {
       id: `row-${id}`,
+      jobPrefix: '',
       jobNumber: '',
       slots: Array.from({ length: total }, () => false),
       slotEntryTypes: Array.from({ length: total }, () => ''),
@@ -140,7 +142,8 @@ export function useTimesheetData({
             : 0
           rows[day].push({
             id: `row-${id}`,
-            jobNumber: jobData?.jobNumber || '',
+            jobPrefix: jobData?.jobPrefix != null ? String(jobData.jobPrefix) : '',
+            jobNumber: jobData?.jobNumber != null ? String(jobData.jobNumber) : '',
             slots,
             slotEntryTypes,
             totalHours,

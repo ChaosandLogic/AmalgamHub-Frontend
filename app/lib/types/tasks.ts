@@ -32,6 +32,13 @@ export interface TaskCardAttachment {
   created_at: string
 }
 
+/** Checklist line stored as JSON on the card */
+export interface TaskChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
 export interface TaskCard {
   id: string
   list_id: string
@@ -48,6 +55,7 @@ export interface TaskCard {
   labels?: TaskLabel[]
   members?: TaskCardMember[]
   attachments?: TaskCardAttachment[]
+  checklist?: TaskChecklistItem[]
 }
 
 export interface TaskLabel {

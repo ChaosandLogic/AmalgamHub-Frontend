@@ -7,7 +7,7 @@ const nextConfig = {
   },
   async rewrites() {
     // Use API_URL from environment (for Docker/remote) or default to localhost for local dev
-    const apiUrl = process.env.API_URL || 'http://localhost:3002';
+    const apiUrl = process.env.API_URL || 'http://localhost:3004';
     return [
       {
         source: '/api/:path*',

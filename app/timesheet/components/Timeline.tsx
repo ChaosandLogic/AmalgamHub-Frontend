@@ -15,6 +15,7 @@ import {
   computeOverlaps,
   lastUsedJobsFromSummary,
 } from '../lib/timesheetUtils'
+import { fullJobCode, splitJobCode } from '../lib/jobPrefixUtils'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import DashboardCards from './DashboardCards'
 import DayTabs from './DayTabs'
@@ -201,7 +202,7 @@ export default function Timeline({ userName }: TimelineProps) {
     const dayRows = rowsByDay[activeDay] || []
     if (dayRows.length === 0) return
     const lastRow = dayRows[dayRows.length - 1]
-    const lastIsEmpty = !lastRow.jobNumber && !lastRow.slots?.some(Boolean)
+    const lastIsEmpty = !fullJobCode(lastRow) && !lastRow.slots?.some(Boolean)
     if (!lastIsEmpty) {
       addRow(activeDay)
     }
@@ -482,8 +483,13 @@ export default function Timeline({ userName }: TimelineProps) {
                 style={{ gridColumn: 1, gridRow: rowIdx + 2, display: 'flex', alignItems: 'center', minHeight: 0, width: '100%' }}
               >
                 <SearchableProjectDropdown
-                  value={row.jobNumber}
-                  onChange={(num: string) => updateRow(activeDay, row.id, (r: any) => ({ ...r, jobNumber: num }))}
+                  value={fullJobCode(row)}
+                  onChange={(full: string) =>
+                    updateRow(activeDay, row.id, (r: any) => {
+                      const { jobPrefix, jobNumber } = splitJobCode(full)
+                      return { ...r, jobPrefix, jobNumber }
+                    })
+                  }
                   projects={projects}
                   placeholder="Search projects..."
                   style={{ fontSize: '12px', minHeight: 36, height: 36 }}

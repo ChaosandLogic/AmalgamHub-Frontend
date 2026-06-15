@@ -505,7 +505,7 @@ export default function GanttChart({ monthStart, projectId, onTaskCreated }: Gan
     }
   }
 
-  const canEdit = user?.role === 'admin' || user?.role === 'booker'
+  const canEdit = Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')
 
   // Listen for new task event from page header
   useEffect(() => {

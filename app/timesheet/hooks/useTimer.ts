@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RowData } from '../lib/types'
 import type { EntryType } from '../lib/constants'
+import { splitJobCode, fullJobCode } from '../lib/jobPrefixUtils'
 
 export interface UseTimerParams {
   rowsByDay: Array<Array<RowData>>
@@ -69,13 +70,15 @@ export function useTimer({
     const roundedHours = Math.round(hours * 4) / 4
 
     if (roundedHours > 0) {
-      const jobNumber = timerJobNumber.trim()
+      const jobKey = timerJobNumber.trim()
       const dayRows = rowsByDay[activeDay] || []
-      let targetRow = dayRows.find((r) => r.jobNumber === jobNumber)
+      let targetRow = dayRows.find((r) => fullJobCode(r) === jobKey)
 
       if (!targetRow) {
         const newRow = createEmptyRow(totalSlots, nextRowId.current++)
-        newRow.jobNumber = timerJobNumber
+        const parsed = splitJobCode(timerJobNumber)
+        newRow.jobPrefix = parsed.jobPrefix
+        newRow.jobNumber = parsed.jobNumber
         setRowsByDay((prev) =>
           prev.map((rows, d) =>
             d === activeDay ? [...rows, newRow] : rows

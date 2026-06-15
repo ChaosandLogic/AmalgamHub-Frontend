@@ -16,6 +16,7 @@ interface ResourceRowProps {
   dragPreview: Record<string, { startDayIndex: number, endDayIndex: number, resourceId?: string, booking?: any }>
   onMouseDownBooking: (booking: any, e: any) => void
   onEditBooking?: (booking: any) => void
+  onViewBooking?: (booking: any) => void
   projectsById?: Record<string, any>
   canEdit?: boolean
   colorMode?: 'priority' | 'pm'
@@ -32,6 +33,7 @@ export default function ResourceRow({
   onMouseDownBooking,
   dragPreview,
   onEditBooking,
+  onViewBooking,
   projectsById,
   canEdit = true,
   colorMode = 'priority',
@@ -120,6 +122,8 @@ export default function ResourceRow({
         onMouseDownBooking={onMouseDownBooking}
         dragPreview={dragPreview}
         onEditBooking={onEditBooking}
+        onViewBooking={onViewBooking}
+        canEdit={canEdit}
         laneInfo={laneInfo}
         resourceId={resource.id}
         projectsById={projectsById}

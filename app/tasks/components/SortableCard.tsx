@@ -5,6 +5,12 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import Card from './Card'
 
+interface TaskChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
 interface TaskCard {
   id: string
   list_id: string
@@ -20,6 +26,7 @@ interface TaskCard {
   resource_id?: string
   labels?: TaskLabel[]
   members?: TaskCardMember[]
+  checklist?: TaskChecklistItem[]
 }
 
 interface TaskLabel {

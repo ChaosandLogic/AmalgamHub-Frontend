@@ -159,7 +159,7 @@ export default function SchedulePage() {
             <option value="priority">Colour by Priority</option>
             <option value="pm">Colour by Project Manager</option>
           </select>
-          {(user?.role === 'admin' || user?.role === 'booker') && (
+          {(Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')) && (
             <>
               <button
                 onClick={() => router.push('/resources')}
@@ -229,7 +229,7 @@ export default function SchedulePage() {
         }}>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 16 }}>
             No resources found.
-            {(user?.role === 'admin' || user?.role === 'booker') ? (
+            {(Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')) ? (
               <> <a href="/resources" style={{ color: 'var(--accent-primary)' }}>Add your first resource</a> to get started.</>
             ) : (
               <> Contact an administrator or booker to add resources.</>

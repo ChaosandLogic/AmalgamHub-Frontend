@@ -1,9 +1,15 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useToast } from '../../components/Toast'
-import { Calendar, Users, Paperclip, Check } from 'lucide-react'
+import { Calendar, Users, Paperclip, Check, ListTodo } from 'lucide-react'
 import { apiPut } from '../../lib/api/client'
 import CardDialog from './CardDialog'
+
+interface TaskChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
 
 interface TaskCard {
   id: string
@@ -23,6 +29,7 @@ interface TaskCard {
   labels?: TaskLabel[]
   members?: TaskCardMember[]
   attachments?: TaskCardAttachment[]
+  checklist?: TaskChecklistItem[]
 }
 
 interface TaskLabel {
@@ -101,6 +108,10 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
   const isOverdue = card.due_date 
     ? new Date(card.due_date) < new Date() && new Date(card.due_date).toDateString() !== new Date().toDateString()
     : false
+
+  const checklistItems = card.checklist
+  const checklistTotal = checklistItems?.length ?? 0
+  const checklistDone = checklistItems?.filter(i => i.done).length ?? 0
 
   const previewAttachment = card.attachments?.find((attachment) => {
     if (!attachment.path) return false
@@ -290,6 +301,23 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
                 {card.attachments.length}
               </div>
             )}
+
+            {/* Checklist progress */}
+            {checklistTotal > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11,
+                  color: checklistDone === checklistTotal ? 'var(--success)' : 'var(--text-secondary)',
+                }}
+                title="Checklist progress"
+              >
+                <ListTodo size={12} />
+                {checklistDone}/{checklistTotal}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -298,6 +326,7 @@ export default function Card({ card, onUpdate, isDragging = false }: CardProps) 
       {showDialog && (
         <CardDialog
           cardId={card.id}
+          onSaved={onUpdate}
           onClose={() => {
             setShowDialog(false)
             onUpdate()

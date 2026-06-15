@@ -12,8 +12,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'account' | 'history' | 'admin'>('account')
   const { user, loading } = useUser()
 
-  const isAdmin = user?.role === 'admin'
-  const isBooker = user?.role === 'booker'
+  const showAdminSettingsTab =
+    Boolean(user?.effectiveAdmin) && user?.role !== 'booker'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -70,7 +70,7 @@ export default function SettingsPage() {
             >
               History
             </button>
-            {isAdmin && !isBooker && (
+            {showAdminSettingsTab && (
               <button
                 onClick={() => setActiveTab('admin')}
                 style={{
@@ -103,7 +103,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
                 <LoadingSpinner />
               </div>
-            ) : activeTab === 'account' ? <SettingsAccount /> : activeTab === 'history' ? <SettingsHistory /> : (isAdmin && !isBooker) ? <SettingsAdmin /> : null}
+            ) : activeTab === 'account' ? <SettingsAccount /> : activeTab === 'history' ? <SettingsHistory /> : showAdminSettingsTab ? <SettingsAdmin /> : null}
           </div>
         </div>
       </div>

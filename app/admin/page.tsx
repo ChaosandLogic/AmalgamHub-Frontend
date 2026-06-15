@@ -8,14 +8,20 @@ import { startOfWeek, getLocalDateString, parseLocalDateString } from '../lib/ut
 import { apiGet, apiPost, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
 import type { CurrentUser } from '../lib/types/user'
 import type { Timesheet } from '../lib/types/timesheet'
+import { useUser } from '../lib/hooks/useUser'
 
 export default function AdminPage() {
   const toast = useToast()
+  const { user } = useUser()
   const [users, setUsers] = useState<CurrentUser[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [viewUser, setViewUser] = useState<CurrentUser | null>(null)
   const [selectedWeek, setSelectedWeek] = useState(() => startOfWeek(new Date()))
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
   const [submittedUsers, setSubmittedUsers] = useState<Map<string, string>>(new Map())
   const [testingNotifications, setTestingNotifications] = useState(false)
   const [notificationResult, setNotificationResult] = useState<string | null>(null)
@@ -53,15 +59,15 @@ export default function AdminPage() {
   useEffect(() => { loadUsers() }, [])
   useEffect(() => { loadSubmissionStatus() }, [selectedWeek])
 
-  async function downloadWeeklyTimesheets() {
+  async function downloadWeeklyPayroll() {
     try {
       const weekKey = getLocalDateString(selectedWeek)
       await apiDownload(
-        `/api/timesheets/export-week?week=${encodeURIComponent(weekKey)}`,
-        `timesheets_week_${weekKey}.xlsx`
+        `/api/timesheets/export-week-payroll?week=${encodeURIComponent(weekKey)}&month=${encodeURIComponent(selectedMonth)}`,
+        `payroll_week_${weekKey}_${selectedMonth}.xlsx`
       )
     } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to download timesheets')
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to download payroll export')
     }
   }
 
@@ -136,31 +142,47 @@ export default function AdminPage() {
                 background: 'var(--surface)'
               }}
             />
+            <span style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: '500' }}>
+              Month (monthly sheet):
+            </span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                background: 'var(--surface)'
+              }}
+            />
             <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
               ({submittedUsers.size} of {users.length} submitted)
             </div>
-            <button
-              onClick={downloadWeeklyTimesheets}
-              disabled={submittedUsers.size === 0}
-              style={{
-                background: submittedUsers.size > 0 ? 'var(--success)' : 'var(--text-tertiary)',
-                color: 'white',
-                border: 'none',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: submittedUsers.size > 0 ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                opacity: submittedUsers.size > 0 ? 1 : 0.6
-              }}
-              title={submittedUsers.size === 0 ? 'No timesheets to download' : 'Download all timesheets for this week as Excel (2 sheets)'}
-            >
-              <span style={{ fontSize: '16px' }}>📥</span>
-              Download Excel
-            </button>
+            {user?.payrollAccess === true && (
+              <button
+                type="button"
+                onClick={downloadWeeklyPayroll}
+                style={{
+                  background: 'var(--success)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                title="Download payroll Excel for the selected week, plus a Monthly job hours sheet for the selected month"
+              >
+                <span style={{ fontSize: '16px' }}>📥</span>
+                Download payroll Excel
+              </button>
+            )}
             <button
               onClick={testDailyNotifications}
               disabled={testingNotifications}
@@ -303,7 +325,13 @@ export default function AdminPage() {
           )}
         </div>
       </div>
-      {viewUser && <UserModal user={viewUser} onClose={() => setViewUser(null)} />}
+      {viewUser && (
+        <UserModal
+          user={viewUser}
+          viewerPayroll={user?.payrollAccess === true}
+          onClose={() => setViewUser(null)}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={!!showDeleteUserConfirm}
@@ -323,7 +351,15 @@ export default function AdminPage() {
   )
 }
 
-function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }) {
+function UserModal({
+  user,
+  viewerPayroll,
+  onClose,
+}: {
+  user: CurrentUser
+  viewerPayroll: boolean
+  onClose: () => void
+}) {
   const toast = useToast()
   const [autosaved, setAutosaved] = useState<Timesheet | null>(null)
   const [submitted, setSubmitted] = useState<Timesheet[]>([])
@@ -422,6 +458,7 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
                 </div>
                 <div className="muted">Jobs: {Object.keys(autosaved.summary?.jobs || {}).length}</div>
                 <div style={{ marginTop: 8 }}>
+                  {viewerPayroll ? (
                   <button 
                     onClick={() => window.open(`/view-current?userId=${user.id}&from=admin`, '_blank')}
                     style={{ 
@@ -437,6 +474,11 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
                   >
                     View Current Timesheet
                   </button>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 13 }}>
+                      View current timesheet is available to payroll accounts only.
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -504,6 +546,7 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.submissionDate || ts.submission_date || ts.submitted_at ? new Date(ts.submissionDate || ts.submission_date || ts.submitted_at || '').toLocaleString('en-GB') : '—'}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{(ts.summary?.totalHours || ts.summary?.total || 0).toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>
+                      {viewerPayroll ? (
                       <button 
                         onClick={() => window.open(`/view?id=${ts.id}&from=admin`, '_blank')}
                         style={{ 
@@ -519,6 +562,9 @@ function UserModal({ user, onClose }: { user: CurrentUser; onClose: () => void }
                       >
                         View
                       </button>
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

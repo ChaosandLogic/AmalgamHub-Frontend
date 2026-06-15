@@ -14,12 +14,13 @@ import { calculateBookingLanes } from '../utils/calculateBookingLanes'
 import TimelineHeader from './TimelineHeader'
 import ResourceRow from './ResourceRow'
 import BookingDialog from './BookingDialog'
+import BookingDetailDialog from './BookingDetailDialog'
 
 export default function ResourceSchedule({ monthStart, resources, projects, currentUser: currentUserProp, colorMode = 'priority' }: ResourceScheduleProps) {
   const toast = useToast()
   const leftColumnRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
-  const [userLocal, setUserLocal] = useState<{ role: string } | null>(null)
+  const [userLocal, setUserLocal] = useState<{ role: string; bookerOrAdminAccess?: boolean } | null>(null)
   const user = currentUserProp !== undefined ? currentUserProp : userLocal
   
   // Calculate total days for 6 months ahead
@@ -35,6 +36,7 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
   const [showBookingDialog, setShowBookingDialog] = useState(false)
   const [newBookingData, setNewBookingData] = useState<any>(null)
   const [editingBooking, setEditingBooking] = useState<any>(null)
+  const [detailBooking, setDetailBooking] = useState<any | null>(null)
   const [users, setUsers] = useState<any[]>([])
   // Preview positions for bookings being dragged: { bookingId: { startDayIndex, endDayIndex, resourceId?, booking? } }
   const [dragPreview, setDragPreview] = useState<Record<string, { startDayIndex: number, endDayIndex: number, resourceId?: string, booking?: any }>>({})
@@ -63,6 +65,31 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
     })
     return map
   }, [users, resources])
+
+  const scheduleCanEdit = Boolean(
+    user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker'
+  )
+
+  const detailDerived = useMemo(() => {
+    if (!detailBooking) return null
+    const res = resources.find((r: any) => r.id === detailBooking.resource_id)
+    const resourceName = (res?.name ?? '').trim() || '—'
+    const resourceType = res?.type || 'person'
+    const pid = detailBooking.project_id ?? detailBooking.projectId
+    const project = pid ? projectsById[pid] : undefined
+    const projectLabel = project
+      ? project.code
+        ? `${project.code} • ${project.name}`
+        : project.name
+      : ''
+    const pmId = detailBooking.project_manager_id
+    let projectManagerName: string | null = null
+    if (pmId) {
+      const u = users.find((x: any) => String(x.id) === String(pmId))
+      if (u?.name) projectManagerName = u.name
+    }
+    return { resourceName, resourceType, projectLabel, projectManagerName }
+  }, [detailBooking, resources, projectsById, users])
 
   // Get unique departments from person resources
   const availableDepartments = useMemo(() => {
@@ -1093,8 +1120,9 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
                     setEditingBooking(booking)
                     setShowBookingDialog(true)
                   }}
+                  onViewBooking={(b: any) => setDetailBooking(b)}
                   projectsById={projectsById}
-                  canEdit={user?.role === 'admin' || user?.role === 'booker'}
+                  canEdit={scheduleCanEdit}
                   colorMode={colorMode}
                   pmColorMap={pmColorMap}
             />
@@ -1125,6 +1153,17 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
           />
         )
       })()}
+
+      {detailBooking && detailDerived && (
+        <BookingDetailDialog
+          booking={detailBooking}
+          resourceName={detailDerived.resourceName}
+          resourceType={detailDerived.resourceType}
+          projectLabel={detailDerived.projectLabel}
+          projectManagerName={detailDerived.projectManagerName ?? undefined}
+          onClose={() => setDetailBooking(null)}
+        />
+      )}
     </div>
   )
 }

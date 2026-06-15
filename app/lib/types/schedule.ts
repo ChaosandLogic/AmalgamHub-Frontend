@@ -47,7 +47,7 @@ export interface ResourceScheduleProps {
   resources: Resource[]
   projects: Project[]
   /** If provided, used for role checks; otherwise component fetches current user itself. */
-  currentUser?: { role: string } | null
+  currentUser?: { role: string; bookerOrAdminAccess?: boolean } | null
   colorMode?: 'priority' | 'pm'
 }
 

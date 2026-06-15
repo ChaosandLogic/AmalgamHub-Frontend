@@ -5,6 +5,18 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useApiData } from '../lib/hooks/useApiData'
 import { jobSummaryHours } from '../lib/utils/timesheetSummary'
+import TimesheetReadOnlyTimeline from '../timesheet/components/TimesheetReadOnlyTimeline'
+
+function weekStartKey(ts: Record<string, unknown>): string {
+  const w = ts.weekStartDate ?? ts.week_start_date
+  if (!w) return new Date().toISOString().slice(0, 10)
+  if (typeof w === 'string') return w.slice(0, 10)
+  try {
+    return new Date(w as string | number | Date).toISOString().slice(0, 10)
+  } catch {
+    return new Date().toISOString().slice(0, 10)
+  }
+}
 
 function ViewCurrentContent() {
   const router = useRouter()
@@ -20,6 +32,9 @@ function ViewCurrentContent() {
     userId ? `/api/timesheets/draft/${userId}` : null,
     { transform: (raw: any) => raw?.timesheet ?? null }
   )
+
+  const { data: globalSettings } = useApiData<any>(userId ? '/api/global-settings' : null)
+  const overtimeEnabled = globalSettings?.settings?.overtime_enabled !== false
 
   const loading = userLoading || tsLoading
   const error = userError || tsError
@@ -93,12 +108,14 @@ function ViewCurrentContent() {
     )
   }
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-  const totalJobs = Object.keys(timesheet.summary?.jobs || {}).length
   // Ensure totalHours is a number
   const totalHours = typeof timesheet.summary?.totalHours === 'number' 
     ? timesheet.summary.totalHours 
     : parseFloat(timesheet.summary?.totalHours) || 0
+
+  const totalJobs = Object.keys(timesheet.summary?.jobs || {}).length
+
+  const draftWeekKey = weekStartKey(timesheet)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -193,54 +210,12 @@ function ViewCurrentContent() {
           </div>
         )}
 
-        {/* Daily Breakdown */}
-        {timesheet.days && timesheet.days.length > 0 && (
-          <div style={{ 
-            border: '1px solid var(--border)', 
-            borderRadius: 12, 
-            padding: 16,
-            background: 'var(--surface)'
-          }}>
-            <h3 style={{ margin: 0, marginBottom: 12 }}>Daily Breakdown</h3>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {timesheet.days.map((dayData: any[], dayIndex: number) => (
-                <div key={dayIndex} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--bg-secondary)' }}>
-                  <h4 style={{ margin: 0, marginBottom: 8, color: 'var(--primary)' }}>{days[dayIndex]}</h4>
-                  {dayData.length === 0 && <div style={{ color: 'var(--muted)' }}>No entries for this day.</div>}
-                  {dayData.length > 0 && (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                      <thead>
-                        <tr>
-                          <th align="left" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>Job Number</th>
-                          <th align="right" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>Hours</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dayData.map((job: any, jobIdx: number) => {
-                          // Ensure totalHours is a number before calling toFixed
-                          const jobHours = typeof job.totalHours === 'number' 
-                            ? job.totalHours 
-                            : parseFloat(job.totalHours) || 0;
-                          return (
-                            <tr key={jobIdx}>
-                              <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{job.jobPrefix}{job.jobNumber}</td>
-                              <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{jobHours.toFixed(2)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                  {(timesheet.dayNotes && timesheet.dayNotes[dayIndex]?.trim()) ? (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: '13px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      <strong style={{ color: 'var(--text-primary)' }}>Notes:</strong> {timesheet.dayNotes[dayIndex].trim()}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <TimesheetReadOnlyTimeline
+          days={timesheet.days ?? []}
+          dayNotes={timesheet.dayNotes ?? timesheet.day_notes}
+          weekStartDate={draftWeekKey}
+          overtimeEnabled={overtimeEnabled}
+        />
 
         {/* Note about autosaved data */}
         <div style={{ 

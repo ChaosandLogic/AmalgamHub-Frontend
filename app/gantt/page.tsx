@@ -444,7 +444,7 @@ function GanttPageContent() {
         </h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {(() => {
-            const canEditGantt = user?.role === 'admin' || user?.role === 'booker'
+            const canEditGantt = Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')
             return (
               <>
                 {canEditGantt && projectId && (

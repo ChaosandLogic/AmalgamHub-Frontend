@@ -21,6 +21,8 @@ interface BookingRendererProps {
   onMouseDownBooking: (booking: any, e: any) => void
   dragPreview: Record<string, { startDayIndex: number, endDayIndex: number, resourceId?: string, booking?: any }>
   onEditBooking?: (booking: any) => void
+  onViewBooking?: (booking: any) => void
+  canEdit?: boolean
   laneInfo?: { bookingLanes: Map<string, number>, totalLanes: number }
   resourceId?: string
   projectsById?: Record<string, any>
@@ -36,6 +38,8 @@ function BookingRenderer({
   onMouseDownBooking,
   dragPreview,
   onEditBooking,
+  onViewBooking,
+  canEdit = true,
   laneInfo,
   resourceId,
   projectsById,
@@ -250,7 +254,7 @@ function BookingRenderer({
               padding: '2px 6px',
               fontSize: '11px',
               color: textColor,
-              cursor: 'move',
+              cursor: canEdit ? 'move' : 'pointer',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
@@ -259,29 +263,48 @@ function BookingRenderer({
               zIndex: 2,
               pointerEvents: 'auto'
             }}
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect()
-              const mouseX = e.clientX - rect.left
-              const width = rect.width
-              
-              // Check if mouse is near left or right edge
-              if (mouseX <= EDGE_THRESHOLD) {
-                e.currentTarget.style.cursor = 'ew-resize'
-              } else if (mouseX >= width - EDGE_THRESHOLD) {
-                e.currentTarget.style.cursor = 'ew-resize'
-              } else {
-                e.currentTarget.style.cursor = 'move'
-              }
-            }}
-            onMouseLeave={(e) => {
-              // Reset cursor when mouse leaves
-              e.currentTarget.style.cursor = 'move'
-            }}
-            onDoubleClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onEditBooking?.(booking)
-            }}
+            onMouseMove={
+              canEdit
+                ? e => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const mouseX = e.clientX - rect.left
+                    const width = rect.width
+
+                    if (mouseX <= EDGE_THRESHOLD) {
+                      e.currentTarget.style.cursor = 'ew-resize'
+                    } else if (mouseX >= width - EDGE_THRESHOLD) {
+                      e.currentTarget.style.cursor = 'ew-resize'
+                    } else {
+                      e.currentTarget.style.cursor = 'move'
+                    }
+                  }
+                : undefined
+            }
+            onMouseLeave={
+              canEdit
+                ? e => {
+                    e.currentTarget.style.cursor = 'move'
+                  }
+                : undefined
+            }
+            onDoubleClick={
+              canEdit
+                ? e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onEditBooking?.(booking)
+                  }
+                : undefined
+            }
+            onClick={
+              !canEdit && onViewBooking
+                ? e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onViewBooking(booking)
+                  }
+                : undefined
+            }
             onMouseDown={e => onMouseDownBooking(booking, e)}
             title={`${booking.title}${
               projectLabel ? ` • ${projectLabel}` : ''

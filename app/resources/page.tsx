@@ -184,7 +184,7 @@ export default function ResourcesPage() {
       }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600, color: 'var(--text-primary)' }}>Resources</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {(user?.role === 'admin' || user?.role === 'booker') && (
+          {(Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')) && (
             <button
               onClick={() => {
                 setEditingResource(null)
@@ -314,7 +314,7 @@ export default function ResourcesPage() {
                   </div>
                 )}
               </div>
-              {(user?.role === 'admin' || user?.role === 'booker') && (
+              {(Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')) && (
                 <div style={{ 
                   display: 'flex', 
                   gap: 8, 
@@ -383,7 +383,7 @@ export default function ResourcesPage() {
                   </button>
                 </div>
               )}
-              {(user?.role === 'admin' || user?.role === 'booker') &&
+              {(Boolean(user?.bookerOrAdminAccess || user?.role === 'admin' || user?.role === 'booker')) &&
                 resource.type === 'person' && resource.email && !linkedResourceIds.has(resource.id) && (
                 <button
                   onClick={(e) => {

@@ -43,6 +43,8 @@ export interface RowTrackProps {
   setEntryTypePopup: (v: { dayIndex: number; rowId: string; start: number; end: number } | null) => void
   setSegmentEntryType: (dayIndex: number, rowId: string, start: number, end: number, type: EntryType) => void
   overtimeEnabled: boolean
+  /** Display-only: no editing, selection, or drag. */
+  readOnly?: boolean
 }
 
 function renderSegments(
@@ -57,7 +59,8 @@ function renderSegments(
   _deleteSegment: RowTrackProps['deleteSegment'],
   setEntryTypePopup: RowTrackProps['setEntryTypePopup'],
   _setSegmentEntryType: RowTrackProps['setSegmentEntryType'],
-  overtimeEnabled: boolean
+  overtimeEnabled: boolean,
+  readOnly: boolean
 ) {
   const segs = getDisplaySegments(row.slots, row.slotEntryTypes, overtimeEnabled)
   if (segs.length === 0) return null
@@ -84,24 +87,30 @@ function renderSegments(
           selectedSegment.start === seg.start &&
           selectedSegment.end === seg.end
 
+        const segmentStyle = {
+          position: 'absolute' as const,
+          left: `${leftPercent}%`,
+          width: `${widthPercent}%`,
+          top: 0,
+          bottom: 0,
+          background: hasOverlap ? 'var(--danger-200)' : colors.bg,
+          border: `2px solid ${hasOverlap ? colors.overlapBorder : isSelected ? 'var(--warning)' : colors.border}`,
+          borderRadius: 6,
+          pointerEvents: readOnly ? ('none' as const) : ('auto' as const),
+          boxShadow: isSelected ? '0 0 0 2px var(--warning)' : '0 1px 2px rgba(0,0,0,0.06)',
+          zIndex: isSelected ? 3 : 2,
+          cursor: readOnly ? ('default' as const) : ('move' as const),
+          overflow: 'hidden' as const,
+        }
+
+        if (readOnly) {
+          return <div key={idx} style={segmentStyle} title={`${slotLabelFullDay(seg.start)}–${slotLabelFullDay(seg.end)}`} />
+        }
+
         return (
           <div
             key={idx}
-            style={{
-              position: 'absolute',
-              left: `${leftPercent}%`,
-              width: `${widthPercent}%`,
-              top: 0,
-              bottom: 0,
-              background: hasOverlap ? 'var(--danger-200)' : colors.bg,
-              border: `2px solid ${hasOverlap ? colors.overlapBorder : isSelected ? 'var(--warning)' : colors.border}`,
-              borderRadius: 6,
-              pointerEvents: 'auto',
-              boxShadow: isSelected ? '0 0 0 2px var(--warning)' : '0 1px 2px rgba(0,0,0,0.06)',
-              zIndex: isSelected ? 3 : 2,
-              cursor: 'move',
-              overflow: 'hidden',
-            }}
+            style={segmentStyle}
             onClick={(e) => {
               e.stopPropagation()
               setSelectedSegment({
@@ -190,6 +199,7 @@ export default function RowTrack({
   setEntryTypePopup,
   setSegmentEntryType,
   overtimeEnabled,
+  readOnly = false,
 }: RowTrackProps) {
   const hours = useMemo(
     () => Array.from({ length: totalSlots }, (_, i) => i),
@@ -223,9 +233,9 @@ export default function RowTrack({
       {hours.map((i) => (
         <div
           key={i}
-          onMouseDown={(e) => onMouseDownCell(i, e)}
+          onMouseDown={readOnly ? undefined : (e) => onMouseDownCell(i, e)}
           style={{
-            cursor: 'crosshair',
+            cursor: readOnly ? 'default' : 'crosshair',
             borderLeft:
               i % 4 === 0
                 ? '1px solid var(--border-strong)'
@@ -247,7 +257,8 @@ export default function RowTrack({
         deleteSegment,
         setEntryTypePopup,
         setSegmentEntryType,
-        overtimeEnabled
+        overtimeEnabled,
+        readOnly
       )}
     </div>
   )
