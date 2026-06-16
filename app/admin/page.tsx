@@ -4,7 +4,7 @@ import Header from '../components/Header'
 import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { startOfWeek, getLocalDateString, parseLocalDateString } from '../lib/utils/dateUtils'
+import { startOfWeek, getLocalDateString, parseLocalDateString, weekStartKeyFromApi } from '../lib/utils/dateUtils'
 import { apiGet, apiPost, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
 import type { CurrentUser } from '../lib/types/user'
 import type { Timesheet } from '../lib/types/timesheet'
@@ -328,7 +328,8 @@ export default function AdminPage() {
       {viewUser && (
         <UserModal
           user={viewUser}
-          viewerPayroll={user?.payrollAccess === true}
+          viewerPayroll={user?.effectiveAdmin === true}
+          viewerCanEdit={user?.payrollAccess === true}
           onClose={() => setViewUser(null)}
         />
       )}
@@ -351,13 +352,28 @@ export default function AdminPage() {
   )
 }
 
+function timesheetWeekKey(ts: Timesheet | null | undefined): string {
+  const raw = ts?.weekStartDate ?? ts?.week_start_date
+  if (raw) {
+    const key = weekStartKeyFromApi(raw)
+    if (key) return key
+  }
+  return getLocalDateString(startOfWeek(new Date()))
+}
+
+function editTimesheetUrl(userId: string, week: string): string {
+  return `/timesheet?userId=${encodeURIComponent(userId)}&week=${encodeURIComponent(week)}&from=admin`
+}
+
 function UserModal({
   user,
   viewerPayroll,
+  viewerCanEdit,
   onClose,
 }: {
   user: CurrentUser
   viewerPayroll: boolean
+  viewerCanEdit: boolean
   onClose: () => void
 }) {
   const toast = useToast()
@@ -457,29 +473,80 @@ function UserModal({
                   Last saved: {autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at ? new Date(autosaved.submissionDate || autosaved.submission_date || autosaved.submitted_at || '').toLocaleString('en-GB') : '—'}
                 </div>
                 <div className="muted">Jobs: {Object.keys(autosaved.summary?.jobs || {}).length}</div>
-                <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {viewerCanEdit && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.open(
+                          editTimesheetUrl(user.id, timesheetWeekKey(autosaved)),
+                          '_blank'
+                        )
+                      }
+                      style={{
+                        background: 'var(--primary)',
+                        color: 'white',
+                        border: '1px solid var(--primary)',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Edit timesheet
+                    </button>
+                  )}
                   {viewerPayroll ? (
-                  <button 
-                    onClick={() => window.open(`/view-current?userId=${user.id}&from=admin`, '_blank')}
-                    style={{ 
-                      background: 'transparent', 
-                      color: 'var(--primary)', 
-                      border: '1px solid var(--primary)',
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    View Current Timesheet
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/view-current?userId=${user.id}&from=admin`, '_blank')}
+                      style={{
+                        background: 'transparent',
+                        color: 'var(--primary)',
+                        border: '1px solid var(--primary)',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      View Current Timesheet
+                    </button>
                   ) : (
-                    <span className="muted" style={{ fontSize: 13 }}>
-                      View current timesheet is available to payroll accounts only.
-                    </span>
+                    !viewerCanEdit && (
+                      <span className="muted" style={{ fontSize: 13 }}>
+                        View current timesheet is available to admin and payroll accounts.
+                      </span>
+                    )
                   )}
                 </div>
+              </div>
+            )}
+            {!autosaved && viewerCanEdit && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(
+                      editTimesheetUrl(user.id, getLocalDateString(startOfWeek(new Date()))),
+                      '_blank'
+                    )
+                  }
+                  style={{
+                    background: 'var(--primary)',
+                    color: 'white',
+                    border: '1px solid var(--primary)',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Edit timesheet
+                </button>
               </div>
             )}
           </section>
@@ -546,25 +613,53 @@ function UserModal({
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.submissionDate || ts.submission_date || ts.submitted_at ? new Date(ts.submissionDate || ts.submission_date || ts.submitted_at || '').toLocaleString('en-GB') : '—'}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{(ts.summary?.totalHours || ts.summary?.total || 0).toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>
-                      {viewerPayroll ? (
-                      <button 
-                        onClick={() => window.open(`/view?id=${ts.id}&from=admin`, '_blank')}
-                        style={{ 
-                          background: 'transparent', 
-                          color: 'var(--primary)', 
-                          border: '1px solid var(--primary)',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        View
-                      </button>
-                      ) : (
-                        <span className="muted" style={{ fontSize: 12 }}>—</span>
-                      )}
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        {viewerCanEdit && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              window.open(
+                                editTimesheetUrl(user.id, timesheetWeekKey(ts)),
+                                '_blank'
+                              )
+                            }
+                            style={{
+                              background: 'var(--primary)',
+                              color: 'white',
+                              border: '1px solid var(--primary)',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {viewerPayroll ? (
+                          <button
+                            type="button"
+                            onClick={() => window.open(`/view?id=${ts.id}&from=admin`, '_blank')}
+                            style={{
+                              background: 'transparent',
+                              color: 'var(--primary)',
+                              border: '1px solid var(--primary)',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            View
+                          </button>
+                        ) : (
+                          !viewerCanEdit && (
+                            <span className="muted" style={{ fontSize: 12 }}>—</span>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

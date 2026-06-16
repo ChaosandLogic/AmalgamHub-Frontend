@@ -44,6 +44,7 @@ export interface UseTimelineInteractionsParams {
   }
   getLocalDateString: (d: Date) => string
   setWeekStart: (d: Date) => void
+  editUserId?: string | null
 }
 
 export function useTimelineInteractions({
@@ -60,6 +61,7 @@ export function useTimelineInteractions({
   toast,
   getLocalDateString,
   setWeekStart,
+  editUserId = null,
 }: UseTimelineInteractionsParams) {
   const [selectedSegment, setSelectedSegment] =
     useState<SelectedSegment>(null)
@@ -84,14 +86,19 @@ export function useTimelineInteractions({
   function autoSave() {
     if (isDraggingRef.current) return
     const payload = serialize()
+    if (editUserId) {
+      payload.userId = editUserId
+    }
     try {
-      if (currentUserId) {
-        localStorage.setItem(
-          `timesheet_autosave_${currentUserId}`,
-          JSON.stringify(payload)
-        )
-      } else {
-        localStorage.setItem('timesheet_autosave', JSON.stringify(payload))
+      if (!editUserId) {
+        if (currentUserId) {
+          localStorage.setItem(
+            `timesheet_autosave_${currentUserId}`,
+            JSON.stringify(payload)
+          )
+        } else {
+          localStorage.setItem('timesheet_autosave', JSON.stringify(payload))
+        }
       }
     } catch {}
 
@@ -467,6 +474,9 @@ export function useTimelineInteractions({
     setShowConfirmDialog(false)
     try {
       const payload = serialize()
+      if (editUserId) {
+        payload.userId = editUserId
+      }
       const response = await apiPost<any>('/api/timesheets', payload)
       const weekKey = getLocalDateString(weekStart)
       setSubmittedWeek(weekKey)

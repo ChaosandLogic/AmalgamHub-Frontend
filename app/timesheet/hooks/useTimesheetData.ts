@@ -43,6 +43,7 @@ export interface UseTimesheetDataParams {
   submittedTimesheetsLoaded: boolean
   setActiveDay: (day: number) => void
   currentUserId: string | null
+  editUserId?: string | null
 }
 
 export function useTimesheetData({
@@ -54,6 +55,7 @@ export function useTimesheetData({
   submittedTimesheetsLoaded,
   setActiveDay,
   currentUserId,
+  editUserId = null,
 }: UseTimesheetDataParams) {
   const [rowsByDay, setRowsByDay] = useState<Array<Array<RowData>>>(() =>
     Array.from({ length: 7 }, () => [])
@@ -171,7 +173,14 @@ export function useTimesheetData({
     } catch {}
   }
 
+  function draftQuery(currentWeek: string): string {
+    const params = new URLSearchParams({ week: currentWeek })
+    if (editUserId) params.set('userId', editUserId)
+    return `/api/timesheets/draft?${params.toString()}`
+  }
+
   function loadLocalStorageSnapshot(currentWeek: string): any | null {
+    if (editUserId) return null
     try {
       const key = currentUserId
         ? `timesheet_autosave_${currentUserId}`
@@ -201,7 +210,7 @@ export function useTimesheetData({
 
     let serverDraft: any = null
     try {
-      const data = await apiGet<{ timesheet: any }>(`/api/timesheets/draft?week=${currentWeek}`)
+      const data = await apiGet<{ timesheet: any }>(draftQuery(currentWeek))
       serverDraft = data.timesheet || null
     } catch (error) {
       console.error('Failed to load autosaved data:', error)
@@ -274,7 +283,7 @@ export function useTimesheetData({
     let cancelled = false
     ;(async () => {
       try {
-        const draftRes = await apiGet<{ timesheet: any }>(`/api/timesheets/draft?week=${currentWeek}`)
+        const draftRes = await apiGet<{ timesheet: any }>(draftQuery(currentWeek))
         if (!cancelled && draftRes.timesheet) {
           setSubmittedWeek(currentWeek)
           hydrateFromSavedInComponent(draftRes.timesheet)
@@ -343,6 +352,7 @@ export function useTimesheetData({
   // localStorage fallback is intentionally omitted here — it caused a race condition
   // where stale autosave data would overwrite correctly-loaded submitted timesheets.
   useEffect(() => {
+    if (editUserId) return
     let cancelled = false
     const currentWeek = getLocalDateString(weekStart)
     ;(async () => {
@@ -362,7 +372,7 @@ export function useTimesheetData({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId])
+  }, [currentUserId, editUserId])
 
   /** Reset the form to 4 empty rows per day — call after a week has been cleared. */
   function resetWeek() {

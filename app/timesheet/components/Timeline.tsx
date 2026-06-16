@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef } from 'react'
+import Link from 'next/link'
 import { useToast } from '../../components/Toast'
 import { getLocalDateString, parseLocalDateString, startOfWeek } from '../../lib/utils/dateUtils'
 import {
@@ -32,12 +33,24 @@ import {
   useTimer,
 } from '../hooks'
 
-type TimelineProps = { userName?: string }
+type TimelineProps = {
+  userName?: string
+  editUserId?: string | null
+  editUserDisplayName?: string | null
+  initialWeek?: string | null
+  returnPath?: string
+}
 
 // Re-export for consumers that import from Timeline
 export type { EntryType } from '../lib/constants'
 
-export default function Timeline({ userName }: TimelineProps) {
+export default function Timeline({
+  userName,
+  editUserId = null,
+  editUserDisplayName = null,
+  initialWeek = null,
+  returnPath = '/timesheet',
+}: TimelineProps) {
   const toast = useToast()
   const totalSlots = FULL_DAY_SLOTS
   const timelineScrollRef = useRef<HTMLDivElement>(null)
@@ -45,7 +58,7 @@ export default function Timeline({ userName }: TimelineProps) {
   const firstRowTrackRef = useRef<HTMLDivElement>(null)
   const saveTimerRef = useRef<any>(null)
 
-  const settings = useTimelineSettings()
+  const settings = useTimelineSettings({ editUserId, initialWeek })
   const {
     weekStart,
     setWeekStart,
@@ -63,6 +76,7 @@ export default function Timeline({ userName }: TimelineProps) {
     submittedTimesheets,
     setSubmittedTimesheets,
     submittedTimesheetsLoaded,
+    editUserId: settingsEditUserId,
   } = settings
 
   const data = useTimesheetData({
@@ -74,6 +88,7 @@ export default function Timeline({ userName }: TimelineProps) {
     submittedTimesheetsLoaded,
     setActiveDay,
     currentUserId,
+    editUserId: settingsEditUserId,
   })
   const {
     rowsByDay,
@@ -106,6 +121,7 @@ export default function Timeline({ userName }: TimelineProps) {
     toast,
     getLocalDateString,
     setWeekStart,
+    editUserId: settingsEditUserId,
   })
   const {
     selectedSegment,
@@ -277,6 +293,37 @@ export default function Timeline({ userName }: TimelineProps) {
         }
       }}
     >
+      {editUserId && (
+        <div
+          style={{
+            padding: '10px 16px',
+            background: 'var(--warning-light)',
+            borderBottom: '1px solid var(--warning)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            fontSize: 14,
+            color: 'var(--warning-dark)',
+          }}
+        >
+          <span>
+            <strong>Editing timesheet for</strong>{' '}
+            {editUserDisplayName || userName || 'user'}
+          </span>
+          <Link
+            href={returnPath}
+            style={{
+              color: 'var(--primary)',
+              fontWeight: 500,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Close
+          </Link>
+        </div>
+      )}
       <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         <DayTabs weekStart={weekStart} activeDay={activeDay} onSelect={setActiveDay} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

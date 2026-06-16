@@ -2,13 +2,26 @@
 
 import { useEffect, useState } from 'react'
 import { useUser } from '../../lib/hooks/useUser'
-import { startOfWeek } from '../../lib/utils/dateUtils'
+import { startOfWeek, parseLocalDateString } from '../../lib/utils/dateUtils'
 import { getLocalDateString, weekStartKeyFromApi } from '../../lib/utils/dateUtils'
 import { todayIndexForWeek } from '../lib/timesheetUtils'
 import { apiGet, apiPost } from '../../lib/api/client'
 
-export function useTimelineSettings() {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+export interface UseTimelineSettingsOptions {
+  editUserId?: string | null
+  initialWeek?: string | null
+}
+
+export function useTimelineSettings(options?: UseTimelineSettingsOptions) {
+  const editUserId = options?.editUserId ?? null
+  const initialWeek = options?.initialWeek ?? null
+
+  const [weekStart, setWeekStart] = useState(() => {
+    if (initialWeek) {
+      return startOfWeek(parseLocalDateString(initialWeek))
+    }
+    return startOfWeek(new Date())
+  })
   const [timelineStartHour, setTimelineStartHour] = useState(7)
   const [timelineDuration, setTimelineDuration] = useState(14)
   const [activeDay, setActiveDay] = useState(() =>
@@ -27,11 +40,21 @@ export function useTimelineSettings() {
   const [submittedTimesheetsLoaded, setSubmittedTimesheetsLoaded] =
     useState(false)
 
-  // Load submitted timesheets list on mount
+  useEffect(() => {
+    if (initialWeek) {
+      setWeekStart(startOfWeek(parseLocalDateString(initialWeek)))
+    }
+  }, [initialWeek])
+
+  // Load submitted timesheets for self or edit target
   useEffect(() => {
     const loadData = async () => {
+      setSubmittedTimesheetsLoaded(false)
       try {
-        const data = await apiGet<{ timesheets: any[] }>('/api/timesheets')
+        const url = editUserId
+          ? `/api/timesheets?userId=${encodeURIComponent(editUserId)}`
+          : '/api/timesheets'
+        const data = await apiGet<{ timesheets: any[] }>(url)
         const timesheetsByWeek: { [week: string]: any } = {}
         data.timesheets?.forEach((ts: any) => {
           const raw = ts.week_start_date ?? ts.weekStartDate ?? ''
@@ -46,39 +69,75 @@ export function useTimelineSettings() {
       }
     }
     loadData()
-  }, [])
+  }, [editUserId])
 
   const { user } = useUser()
 
+  // Target user prefs when editing on behalf
+  useEffect(() => {
+    if (!editUserId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await apiGet<{ user: any }>(`/api/users/${encodeURIComponent(editUserId)}`)
+        if (cancelled) return
+        const u = data.user
+        if (u?.resourceId) setUserResourceId(u.resourceId)
+        if (u?.timelineStartHour != null) setTimelineStartHour(u.timelineStartHour)
+        if (u?.timelineDuration != null) setTimelineDuration(u.timelineDuration)
+      } catch (error) {
+        console.error('Failed to load target user for timesheet edit:', error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editUserId])
+
   // When user is set, sync user-derived state then load global settings and projects
   useEffect(() => {
+    if (editUserId) return
     if (!user) return
     setCurrentUserId(user.id)
     const u = user as { resourceId?: string; timelineStartHour?: number; timelineDuration?: number }
     if (u.resourceId) setUserResourceId(u.resourceId)
     if (u.timelineStartHour != null) setTimelineStartHour(u.timelineStartHour)
     if (u.timelineDuration != null) setTimelineDuration(u.timelineDuration)
+  }, [user, editUserId])
 
+  // Global settings and projects (same for self and edit-on-behalf)
+  useEffect(() => {
+    if (editUserId && !user) return
+    if (!editUserId && !user) return
+    let cancelled = false
     ;(async () => {
       try {
         const settingsData = await apiGet<{ settings: any }>('/api/global-settings')
+        if (cancelled) return
         const settings = settingsData.settings
         if (settings?.overtime_enabled !== undefined) setOvertimeEnabled(!!settings.overtime_enabled)
-        if (settings?.weekend_overtime_enabled !== undefined) setWeekendOvertimeEnabled(!!settings.weekend_overtime_enabled)
+        if (settings?.weekend_overtime_enabled !== undefined) {
+          setWeekendOvertimeEnabled(!!settings.weekend_overtime_enabled)
+        }
       } catch {
-        setOvertimeEnabled(false)
-        setWeekendOvertimeEnabled(false)
+        if (!cancelled) {
+          setOvertimeEnabled(false)
+          setWeekendOvertimeEnabled(false)
+        }
       }
       try {
         const projectsData = await apiGet<{ projects: any[] }>('/api/projects')
-        setProjects(projectsData.projects || [])
+        if (!cancelled) setProjects(projectsData.projects || [])
       } catch (error) {
         console.error('Error loading projects:', error)
       } finally {
-        setSettingsLoaded(true)
+        if (!cancelled) setSettingsLoaded(true)
       }
     })()
-  }, [user])
+    return () => {
+      cancelled = true
+    }
+  }, [user, editUserId])
 
   // Periodically refresh the JWT so active sessions don't silently expire (every 4 hours)
   useEffect(() => {
@@ -148,5 +207,6 @@ export function useTimelineSettings() {
     setSubmittedTimesheets,
     submittedTimesheetsLoaded,
     setSubmittedTimesheetsLoaded,
+    editUserId,
   }
 }
