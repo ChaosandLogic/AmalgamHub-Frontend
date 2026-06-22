@@ -25,8 +25,6 @@ export default function AdminPage() {
   const [submittedUsers, setSubmittedUsers] = useState<Map<string, string>>(new Map())
   const [testingNotifications, setTestingNotifications] = useState(false)
   const [notificationResult, setNotificationResult] = useState<string | null>(null)
-  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<CurrentUser | null>(null)
-
   async function loadUsers() {
     setLoading(true)
     try {
@@ -76,21 +74,6 @@ export default function AdminPage() {
       await apiPatch(`/api/users/${userId}/role`, { role })
       setUsers(prev => prev.map(u => (u.id === userId ? { ...u, role } : u)))
     } catch {}
-  }
-
-  async function deleteUser(user: CurrentUser) {
-    setShowDeleteUserConfirm(user)
-  }
-
-  const confirmDeleteUser = async (user: CurrentUser) => {
-    try {
-      await apiDelete(`/api/users/${user.id}`, { defaultErrorMessage: 'Failed to delete' })
-      setUsers(prev => prev.filter(u => u.id !== user.id))
-      toast.success('User deleted successfully')
-    } catch (e: unknown) { 
-      toast.error((e instanceof Error ? e.message : String(e))) 
-    }
-    setShowDeleteUserConfirm(null)
   }
 
   async function testDailyNotifications() {
@@ -300,21 +283,6 @@ export default function AdminPage() {
                       >
                         Timesheets
                       </button>
-                      <button 
-                        onClick={() => deleteUser(u)} 
-                        style={{ 
-                          background: 'var(--danger-200)', 
-                          color: 'var(--text-primary)', 
-                          border: '1px solid var(--danger-200)',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Delete
-                      </button>
                     </td>
                   </tr>
                   )
@@ -334,20 +302,6 @@ export default function AdminPage() {
         />
       )}
 
-      <ConfirmDialog
-        isOpen={!!showDeleteUserConfirm}
-        title="Delete User"
-        message={`Are you sure you want to delete "${showDeleteUserConfirm?.name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        type="danger"
-        onConfirm={async () => {
-          if (showDeleteUserConfirm) {
-            await confirmDeleteUser(showDeleteUserConfirm)
-          }
-        }}
-        onCancel={() => setShowDeleteUserConfirm(null)}
-      />
     </div>
   )
 }
