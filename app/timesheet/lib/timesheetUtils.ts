@@ -306,12 +306,40 @@ export function hydrateSlotEntryTypesFromSavedRow(
 
 // --- Serialization (row data → API payload) ---
 
+export const DEFAULT_SUBMITTED_DAYS: boolean[] = [
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+]
+
+export function parseSubmittedDays(raw: unknown): boolean[] {
+  if (Array.isArray(raw) && raw.length === 7) {
+    return raw.map(Boolean)
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length === 7) {
+        return parsed.map(Boolean)
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return [...DEFAULT_SUBMITTED_DAYS]
+}
+
 export function serializeTimesheet(
   rowsByDay: any[][],
   dayNotes: string[],
   weekStart: Date,
   userName: string,
-  overtimeEnabled: boolean
+  overtimeEnabled: boolean,
+  submittedDays: boolean[] = DEFAULT_SUBMITTED_DAYS
 ): {
   name: string
   weekStartDate: string
@@ -319,6 +347,7 @@ export function serializeTimesheet(
   dayNotes: string[]
   summary: any
   submissionDate: string
+  submittedDays: boolean[]
 } {
   const summary: any = {
     jobs: {},
@@ -426,5 +455,6 @@ export function serializeTimesheet(
     dayNotes,
     summary,
     submissionDate: new Date().toISOString(),
+    submittedDays: parseSubmittedDays(submittedDays),
   }
 }

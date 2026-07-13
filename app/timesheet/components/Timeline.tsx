@@ -95,6 +95,8 @@ export default function Timeline({
     setRowsByDay,
     dayNotes,
     setDayNotes,
+    submittedDays,
+    setSubmittedDays,
     submittedWeek,
     setSubmittedWeek,
     createEmptyRow,
@@ -117,6 +119,8 @@ export default function Timeline({
     currentUserId,
     setSubmittedWeek,
     setSubmittedTimesheets,
+    setSubmittedDays,
+    activeDay,
     justSubmittedRef,
     toast,
     getLocalDateString,
@@ -131,6 +135,10 @@ export default function Timeline({
     entryTypeConfirm,
     setEntryTypeConfirm,
     showConfirmDialog,
+    showDayConfirmDialog,
+    showDaySubmitConfirmation,
+    confirmSubmitDay,
+    cancelSubmitDay,
     showOverlapWarning,
     overlapDetails,
     isDraggingRef,
@@ -325,7 +333,16 @@ export default function Timeline({
         </div>
       )}
       <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-        <DayTabs weekStart={weekStart} activeDay={activeDay} onSelect={setActiveDay} />
+        <DayTabs
+          weekStart={weekStart}
+          activeDay={activeDay}
+          onSelect={setActiveDay}
+          submittedDays={
+            submittedWeek === getLocalDateString(weekStart)
+              ? [true, true, true, true, true, true, true]
+              : submittedDays
+          }
+        />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 500 }}>
@@ -379,21 +396,42 @@ export default function Timeline({
               </div>
             )}
           </div>
-          <button 
-            onClick={showSubmitConfirmation}
-            style={{
-              background: 'var(--primary)',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-          >
-            Submit
-          </button>
+          {submittedWeek !== getLocalDateString(weekStart) && (
+            <>
+              <button
+                onClick={showDaySubmitConfirmation}
+                disabled={submittedDays[activeDay] === true}
+                style={{
+                  background: submittedDays[activeDay] ? 'var(--text-tertiary)' : 'var(--surface)',
+                  color: submittedDays[activeDay] ? 'white' : 'var(--text-primary)',
+                  border: '1px solid var(--border)',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: submittedDays[activeDay] ? 'not-allowed' : 'pointer',
+                  opacity: submittedDays[activeDay] ? 0.7 : 1,
+                }}
+              >
+                Submit today
+              </button>
+              <button
+                onClick={showSubmitConfirmation}
+                style={{
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                }}
+              >
+                Submit week
+              </button>
+            </>
+          )}
         </div>
       </div>
       <div style={{ marginTop: 0, padding: 16, display: 'grid', gap: 16, gridTemplateRows: 'auto auto auto', overflow: 'visible', width: '100%', minWidth: 0 }}>
@@ -507,6 +545,20 @@ export default function Timeline({
                   Double-click an entry to set type: Standard, Overtime, or Overtime+
                 </small>
               )}
+              {submittedWeek !== getLocalDateString(weekStart) &&
+                submittedDays[activeDay] && (
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: 4,
+                      color: 'var(--success-dark)',
+                      fontSize: 12,
+                    }}
+                  >
+                    Today marked as submitted — you can still edit until the week is
+                    submitted.
+                  </small>
+                )}
             </div>
           </div>
           <div
@@ -763,8 +815,26 @@ export default function Timeline({
       />
 
       <ConfirmDialog
+        isOpen={showDayConfirmDialog}
+        title="Submit today"
+        message={
+          <>
+            Mark <strong>{DAYS[activeDay]}</strong> as submitted for this week?
+            <br />
+            <br />
+            You can still edit today&apos;s entries until you submit the full week.
+          </>
+        }
+        confirmText="Submit today"
+        cancelText="Cancel"
+        type="info"
+        onConfirm={confirmSubmitDay}
+        onCancel={cancelSubmitDay}
+      />
+
+      <ConfirmDialog
         isOpen={showConfirmDialog}
-        title="Submit Timesheet"
+        title="Submit week"
         message={
           <>
             Are you sure you want to submit this timesheet for the week commencing{' '}
@@ -795,7 +865,7 @@ export default function Timeline({
             <span>Jobs: <strong>{summary?.byJob?.size ?? 0}</strong></span>
           </>
         }
-        confirmText="Submit Timesheet"
+        confirmText="Submit week"
         cancelText="Cancel"
         type="info"
         onConfirm={confirmSubmit}

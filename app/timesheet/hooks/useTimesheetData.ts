@@ -13,6 +13,8 @@ import {
   hydrateSlotEntryTypesFromSavedRow,
   serializeTimesheet,
   todayIndexForWeek,
+  parseSubmittedDays,
+  DEFAULT_SUBMITTED_DAYS,
 } from '../lib/timesheetUtils'
 import { fullJobCode } from '../lib/jobPrefixUtils'
 
@@ -61,6 +63,7 @@ export function useTimesheetData({
     Array.from({ length: 7 }, () => [])
   )
   const [dayNotes, setDayNotes] = useState<string[]>(() => Array(7).fill(''))
+  const [submittedDays, setSubmittedDays] = useState<boolean[]>(() => [...DEFAULT_SUBMITTED_DAYS])
   const [submittedWeek, setSubmittedWeek] = useState<string | null>(null)
 
   const nextRowId = useRef(0)
@@ -118,7 +121,8 @@ export function useTimesheetData({
       dayNotes,
       weekStart,
       userName || 'User',
-      overtimeEnabled
+      overtimeEnabled,
+      submittedDays
     )
   }
 
@@ -170,6 +174,11 @@ export function useTimesheetData({
       } else {
         setDayNotes(Array(7).fill(''))
       }
+      setSubmittedDays(
+        parseSubmittedDays(
+          (saved as any).submittedDays ?? (saved as any).submitted_days
+        )
+      )
     } catch {}
   }
 
@@ -255,6 +264,7 @@ export function useTimesheetData({
       )
     )
     setDayNotes(Array(7).fill(''))
+    setSubmittedDays([...DEFAULT_SUBMITTED_DAYS])
   }
 
   useEffect(() => { submittedTimesheetsRef.current = submittedTimesheets }, [submittedTimesheets])
@@ -275,6 +285,7 @@ export function useTimesheetData({
     // No submission for this week — load draft or empty form
     if (!submittedTimesheets[currentWeek]) {
       setSubmittedWeek(null)
+      setSubmittedDays([...DEFAULT_SUBMITTED_DAYS])
       loadAutosavedForWeek()
       return
     }
@@ -384,6 +395,7 @@ export function useTimesheetData({
       )
     )
     setDayNotes(Array(7).fill(''))
+    setSubmittedDays([...DEFAULT_SUBMITTED_DAYS])
   }
 
   return {
@@ -391,6 +403,8 @@ export function useTimesheetData({
     setRowsByDay,
     dayNotes,
     setDayNotes,
+    submittedDays,
+    setSubmittedDays,
     submittedWeek,
     setSubmittedWeek,
     createEmptyRow,

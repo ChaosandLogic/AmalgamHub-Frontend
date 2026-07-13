@@ -39,6 +39,8 @@ function defaultParams(overrides: Partial<Parameters<typeof useTimelineInteracti
     currentUserId: 'user-1',
     setSubmittedWeek: vi.fn(),
     setSubmittedTimesheets: vi.fn(),
+    setSubmittedDays: vi.fn(),
+    activeDay: 0,
     justSubmittedRef: { current: false },
     toast: mockToast,
     getLocalDateString: (d: Date) =>

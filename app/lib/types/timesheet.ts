@@ -26,4 +26,7 @@ export interface GlobalSettings {
   department_list: string[]
   job_role_list: string[]
   label_list: string[]
+  timesheet_reminder_enabled?: boolean
+  timesheet_reminder_weekday_time?: string
+  timesheet_reminder_monday_time?: string
 }

@@ -7,7 +7,8 @@ import { getResourceIcon, getResourceDefaultColor } from '../../lib/utils/resour
 import { 
   DAY_COLUMN_WIDTH, 
   ROW_HEIGHT, 
-  MONTHS_TO_DISPLAY
+  MONTHS_TO_DISPLAY,
+  JOB_ROLE_GROUP_FILTERS,
 } from '../../lib/constants/schedule'
 import type { ResourceScheduleProps } from '../../lib/types/schedule'
 import { calculateBookingLanes } from '../utils/calculateBookingLanes'
@@ -131,7 +132,14 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
           filtered = filtered.filter(r => r.department === departmentFilter)
         }
         if (jobRoleFilter !== 'all') {
-          filtered = filtered.filter(r => r.job_role === jobRoleFilter)
+          if (jobRoleFilter.startsWith('contains:')) {
+            const keyword = jobRoleFilter.slice('contains:'.length).toLowerCase()
+            filtered = filtered.filter(r =>
+              (r.job_role || '').toLowerCase().includes(keyword)
+            )
+          } else {
+            filtered = filtered.filter(r => r.job_role === jobRoleFilter)
+          }
         }
       }
     }
@@ -1009,6 +1017,11 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
                           }}
                         >
                           <option value="all">All Job Roles</option>
+                          {JOB_ROLE_GROUP_FILTERS.map(group => (
+                            <option key={group.value} value={group.value}>
+                              {group.label}
+                            </option>
+                          ))}
                           {availableJobRoles.map(role => (
                             <option key={role} value={role}>
                               {role}

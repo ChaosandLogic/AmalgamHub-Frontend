@@ -24,6 +24,9 @@ export default function SettingsAdmin() {
       overtime_enabled: !!s?.overtime_enabled,
       weekend_overtime_enabled: !!s?.weekend_overtime_enabled,
       timesheets_enabled: s?.timesheets_enabled !== undefined ? !!s.timesheets_enabled : true,
+      timesheet_reminder_enabled: !!s?.timesheet_reminder_enabled,
+      timesheet_reminder_weekday_time: s?.timesheet_reminder_weekday_time || '09:00',
+      timesheet_reminder_monday_time: s?.timesheet_reminder_monday_time || '16:00',
       timezone: s?.timezone || 'UTC',
       country_code: s?.country_code || '',
       department_list: Array.isArray(s?.department_list) ? s.department_list : (s?.department_list ? JSON.parse(s.department_list) : []),
@@ -54,6 +57,9 @@ export default function SettingsAdmin() {
         overtime_enabled: !!settings.overtime_enabled,
         weekend_overtime_enabled: !!settings.weekend_overtime_enabled,
         timesheets_enabled: settings.timesheets_enabled !== undefined ? !!settings.timesheets_enabled : true,
+        timesheet_reminder_enabled: !!settings.timesheet_reminder_enabled,
+        timesheet_reminder_weekday_time: settings.timesheet_reminder_weekday_time || '09:00',
+        timesheet_reminder_monday_time: settings.timesheet_reminder_monday_time || '16:00',
         timezone: settings.timezone || 'UTC',
         country_code: settings.country_code || '',
         department_list: Array.isArray(settings.department_list)
@@ -144,6 +150,67 @@ export default function SettingsAdmin() {
             When disabled, all users (including admins) cannot access or create timesheets.
           </small>
         </label>
+
+        <label style={label}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={!!settings.timesheet_reminder_enabled}
+              onChange={e =>
+                setSettings({ ...settings, timesheet_reminder_enabled: e.target.checked })
+              }
+              disabled={settings.timesheets_enabled === false}
+            />
+            Daily timesheet reminder popup
+          </div>
+          <small style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 24 }}>
+            Once per day, shows a blocking reminder if today is not marked submitted and the
+            week is not submitted.
+          </small>
+        </label>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={label}>
+            <div style={{ fontWeight: 500 }}>Weekday reminder from</div>
+            <input
+              type="time"
+              value={settings.timesheet_reminder_weekday_time || '09:00'}
+              onChange={e =>
+                setSettings({
+                  ...settings,
+                  timesheet_reminder_weekday_time: e.target.value,
+                })
+              }
+              disabled={
+                !settings.timesheet_reminder_enabled || settings.timesheets_enabled === false
+              }
+              style={input}
+            />
+            <small style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Tue–Sun: first login after this time
+            </small>
+          </label>
+          <label style={label}>
+            <div style={{ fontWeight: 500 }}>Monday reminder from</div>
+            <input
+              type="time"
+              value={settings.timesheet_reminder_monday_time || '16:00'}
+              onChange={e =>
+                setSettings({
+                  ...settings,
+                  timesheet_reminder_monday_time: e.target.value,
+                })
+              }
+              disabled={
+                !settings.timesheet_reminder_enabled || settings.timesheets_enabled === false
+              }
+              style={input}
+            />
+            <small style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Monday end-of-day reminder
+            </small>
+          </label>
+        </div>
 
         <h4 style={heading}>Overtime</h4>
         <label style={label}>

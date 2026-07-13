@@ -23,6 +23,11 @@ export default function AdminPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
   const [submittedUsers, setSubmittedUsers] = useState<Map<string, string>>(new Map())
+  const [dayStatusByUser, setDayStatusByUser] = useState<
+    Map<string, { todayDaySubmitted: boolean; todayInWeek: boolean; weekSubmitted: boolean }>
+  >(new Map())
+  const [todayInSelectedWeek, setTodayInSelectedWeek] = useState(true)
+
   async function loadUsers() {
     setLoading(true)
     try {
@@ -34,7 +39,14 @@ export default function AdminPage() {
   async function loadSubmissionStatus() {
     try {
       const weekKey = getLocalDateString(selectedWeek)
-      const data = await apiGet<{ timesheets: Timesheet[] }>(
+      const data = await apiGet<{
+        timesheets: Timesheet[]
+        dayStatusByUser?: Record<
+          string,
+          { todayDaySubmitted: boolean; todayInWeek: boolean; weekSubmitted: boolean }
+        >
+        todayInWeek?: boolean
+      }>(
         `/api/timesheets/all?week=${encodeURIComponent(weekKey)}&summary=true`
       )
       const submitted = new Map<string, string>()
@@ -45,6 +57,18 @@ export default function AdminPage() {
         submitted.set(userId, subDate)
       })
       setSubmittedUsers(submitted)
+
+      const dayMap = new Map<
+        string,
+        { todayDaySubmitted: boolean; todayInWeek: boolean; weekSubmitted: boolean }
+      >()
+      if (data.dayStatusByUser) {
+        Object.entries(data.dayStatusByUser).forEach(([userId, status]) => {
+          dayMap.set(userId, status)
+        })
+      }
+      setDayStatusByUser(dayMap)
+      setTodayInSelectedWeek(data.todayInWeek !== false)
     } catch (e) {
       console.error('Failed to load submission status:', e)
     }
@@ -170,6 +194,7 @@ export default function AdminPage() {
               <thead>
                 <tr style={{ background: 'var(--bg-secondary)' }}>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Status</th>
+                  <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Today</th>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Submitted</th>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Name</th>
                   <th align="left" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Email</th>
@@ -182,6 +207,8 @@ export default function AdminPage() {
                 {users.map(u => {
                   const hasSubmitted = submittedUsers.has(u.id)
                   const submittedDate = submittedUsers.get(u.id)
+                  const dayStatus = dayStatusByUser.get(u.id)
+                  const todaySubmitted = dayStatus?.todayDaySubmitted === true
                   return (
                     <tr key={u.id}>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
@@ -199,6 +226,26 @@ export default function AdminPage() {
                         }}>
                           {hasSubmitted ? '✓' : '○'} {hasSubmitted ? 'Submitted' : 'Pending'}
                         </div>
+                      </td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+                        {!todayInSelectedWeek ? (
+                          <span style={{ fontSize: '13px', color: 'var(--muted)' }}>—</span>
+                        ) : (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            background: todaySubmitted ? 'var(--success-light)' : 'var(--error-light)',
+                            color: todaySubmitted ? 'var(--success-dark)' : 'var(--error-dark)',
+                            border: `1px solid ${todaySubmitted ? 'var(--success)' : 'var(--error-border)'}`
+                          }}>
+                            {todaySubmitted ? '✓ Yes' : '✕ No'}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', fontSize: '13px', color: 'var(--muted)' }}>
                         {submittedDate ? new Date(submittedDate).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}

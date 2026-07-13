@@ -16,3 +16,8 @@ export const EXCLUDED_SCHEDULE_EMAILS: readonly string[] = [
   'admin@amalgamhub.com',
 ]
 
+/** Job role dropdown group filters — match roles containing the keyword (case-insensitive). */
+export const JOB_ROLE_GROUP_FILTERS: readonly { value: string; label: string; keyword: string }[] = [
+  { value: 'contains:maker', label: 'All makers', keyword: 'maker' },
+]
+

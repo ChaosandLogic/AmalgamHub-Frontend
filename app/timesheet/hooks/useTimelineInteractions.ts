@@ -35,6 +35,8 @@ export interface UseTimelineInteractionsParams {
   setSubmittedTimesheets: React.Dispatch<
     React.SetStateAction<{ [week: string]: any }>
   >
+  setSubmittedDays: React.Dispatch<React.SetStateAction<boolean[]>>
+  activeDay: number
   justSubmittedRef: React.MutableRefObject<boolean>
   toast: {
     success: (msg: string) => void
@@ -57,6 +59,8 @@ export function useTimelineInteractions({
   currentUserId,
   setSubmittedWeek,
   setSubmittedTimesheets,
+  setSubmittedDays,
+  activeDay,
   justSubmittedRef,
   toast,
   getLocalDateString,
@@ -71,6 +75,7 @@ export function useTimelineInteractions({
   const [entryTypeConfirm, setEntryTypeConfirm] =
     useState<EntryType | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [showDayConfirmDialog, setShowDayConfirmDialog] = useState(false)
   const [showOverlapWarning, setShowOverlapWarning] = useState(false)
   const [overlapDetails, setOverlapDetails] = useState<any[]>([])
 
@@ -470,6 +475,44 @@ export function useTimelineInteractions({
     }
   }
 
+  function showDaySubmitConfirmation() {
+    setShowDayConfirmDialog(true)
+  }
+
+  async function confirmSubmitDay() {
+    setShowDayConfirmDialog(false)
+    try {
+      const payload = serialize()
+      payload.dayIndex = activeDay
+      if (editUserId) {
+        payload.userId = editUserId
+      }
+      const response = await apiPost<{ submittedDays?: boolean[] }>(
+        '/api/timesheets/submit-day',
+        payload
+      )
+      if (response.submittedDays && response.submittedDays.length === 7) {
+        setSubmittedDays(response.submittedDays.map(Boolean))
+      } else {
+        setSubmittedDays((prev) => {
+          const next = [...prev]
+          next[activeDay] = true
+          return next
+        })
+      }
+      toast.success(`${DAYS[activeDay]} marked as submitted`)
+    } catch (error: unknown) {
+      toast.error(
+        (error instanceof Error ? error.message : String(error)) ||
+          'Failed to submit day. Please try again.'
+      )
+    }
+  }
+
+  function cancelSubmitDay() {
+    setShowDayConfirmDialog(false)
+  }
+
   async function confirmSubmit() {
     setShowConfirmDialog(false)
     try {
@@ -480,6 +523,7 @@ export function useTimelineInteractions({
       const response = await apiPost<any>('/api/timesheets', payload)
       const weekKey = getLocalDateString(weekStart)
       setSubmittedWeek(weekKey)
+      setSubmittedDays([true, true, true, true, true, true, true])
       setSubmittedTimesheets((prev) => ({
         ...prev,
         [weekKey]: { ...payload, ...response.timesheet },
@@ -571,6 +615,10 @@ export function useTimelineInteractions({
     setEntryTypeConfirm,
     showConfirmDialog,
     setShowConfirmDialog,
+    showDayConfirmDialog,
+    showDaySubmitConfirmation,
+    confirmSubmitDay,
+    cancelSubmitDay,
     showOverlapWarning,
     setShowOverlapWarning,
     overlapDetails,

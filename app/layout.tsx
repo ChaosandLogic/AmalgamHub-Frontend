@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PageTransition from "./components/PageTransition";
 import { ToastProvider } from "./components/Toast";
+import TimesheetReminderGate from "./components/TimesheetReminderGate";
 import DarkModeInit from "./components/DarkModeInit";
 
 const geistSans = Geist({
@@ -65,6 +66,7 @@ export default function RootLayout({
       >
         <DarkModeInit />
         <ToastProvider>
+          <TimesheetReminderGate />
           <PageTransition>{children}</PageTransition>
         </ToastProvider>
       </body>
