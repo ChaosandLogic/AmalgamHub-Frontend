@@ -504,7 +504,7 @@ export default function Timeline({
               )}
               {overtimeEnabled && !selectedSegment && (
                 <small style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  Double-click an entry to set type: Standard or Overtime
+                  Double-click an entry to set type: Standard, Overtime, or Overtime+
                 </small>
               )}
             </div>
@@ -730,9 +730,19 @@ export default function Timeline({
       />
 
       <ConfirmDialog
-        isOpen={!!(entryTypePopup && entryTypeConfirm && entryTypeConfirm === 'overtime')}
+        isOpen={
+          !!(
+            entryTypePopup &&
+            entryTypeConfirm &&
+            (entryTypeConfirm === 'overtime' || entryTypeConfirm === 'extra-overtime')
+          )
+        }
         title="Confirm entry type"
-        message="Mark this time block as Overtime?"
+        message={
+          entryTypeConfirm === 'extra-overtime'
+            ? 'Mark this time block as Overtime+ (overnight site work at 1.5× / TOIL)?'
+            : 'Mark this time block as Overtime (site work at 1.33× / TOIL)?'
+        }
         confirmText="Confirm"
         cancelText="Cancel"
         type="warning"
@@ -771,6 +781,15 @@ export default function Timeline({
                 <br />
                 <span>Overtime Hours: <strong>{(summary?.overtimeHours ?? 0).toFixed(2)}</strong></span>
                 <br />
+                {(summary?.extraOvertimeHours ?? 0) > 0 && (
+                  <>
+                    <span>
+                      Overtime+ Hours:{' '}
+                      <strong>{(summary?.extraOvertimeHours ?? 0).toFixed(2)}</strong>
+                    </span>
+                    <br />
+                  </>
+                )}
               </>
             )}
             <span>Jobs: <strong>{summary?.byJob?.size ?? 0}</strong></span>

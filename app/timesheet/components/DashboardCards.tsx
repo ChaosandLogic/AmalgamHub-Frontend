@@ -1,12 +1,14 @@
 'use client'
 
 import { formatTimeFromString } from '../lib/timesheetUtils'
+import { EXTRA_OVERTIME_COLORS } from '../lib/constants'
 
 interface DashboardCardsProps {
   summary: {
     totalHours: number
     standardHours?: number
     overtimeHours?: number
+    extraOvertimeHours?: number
     overtimeEnabled?: boolean
     byJob?: Map<string, unknown>
     dayTotals?: number[]
@@ -55,11 +57,14 @@ export default function DashboardCards({
       : []
 
   const dayTotal = summary.dayTotals?.[activeDay] ?? 0
+  const extraOvertimeHours = summary.extraOvertimeHours ?? 0
+  const showExtraOvertime = !!summary?.overtimeEnabled && extraOvertimeHours > 0
 
   const summaryCardCount =
     (todaysJobs.length === 1 ? 1 : 0) +
     2 +
-    (summary?.overtimeEnabled ? 2 : 0)
+    (summary?.overtimeEnabled ? 2 : 0) +
+    (showExtraOvertime ? 1 : 0)
   const summaryGridCols = `repeat(${Math.max(summaryCardCount, 1)}, minmax(0, 1fr))`
   const gridColumnFull = '1 / -1'
 
@@ -249,6 +254,28 @@ export default function DashboardCards({
                 {(summary.overtimeHours ?? 0).toFixed(2)}
               </div>
             </div>
+            {showExtraOvertime && (
+              <div
+                style={{
+                  ...cardStyle,
+                  border: `1px solid ${EXTRA_OVERTIME_COLORS.border}`,
+                  background: EXTRA_OVERTIME_COLORS.bg,
+                }}
+              >
+                <div style={{ ...labelStyle, color: EXTRA_OVERTIME_COLORS.text }}>
+                  Overtime+ Hours
+                </div>
+                <div
+                  style={{
+                    ...valueStyle,
+                    fontSize: 24,
+                    color: EXTRA_OVERTIME_COLORS.text,
+                  }}
+                >
+                  {extraOvertimeHours.toFixed(2)}
+                </div>
+              </div>
+            )}
           </>
         )}
         <div style={{ ...cardStyle, gridColumn: gridColumnFull, minWidth: 0 }}>

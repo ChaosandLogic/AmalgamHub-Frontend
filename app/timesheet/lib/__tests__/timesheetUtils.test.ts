@@ -142,7 +142,23 @@ describe('computeWeeklySummary', () => {
     const summary = computeWeeklySummary(rowsByDay, true)
     expect(summary.totalHours).toBe(1)
     expect(summary.overtimeHours).toBe(0.5)
+    expect(summary.extraOvertimeHours).toBe(0)
     expect(summary.standardHours).toBe(0.5)
+  })
+
+  it('keeps overtime+ independent of overtime', () => {
+    const rowsByDay = Array.from({ length: 7 }, () => [])
+    const types: ('' | 'standard' | 'overtime' | 'extra-overtime')[] = Array(FULL_DAY_SLOTS).fill('')
+    types[0] = 'standard'
+    types[1] = 'overtime'
+    types[2] = 'extra-overtime'
+    types[3] = 'extra-overtime'
+    rowsByDay[0] = [makeRow('JOB1', [0, 1, 2, 3], types)]
+    const summary = computeWeeklySummary(rowsByDay, true)
+    expect(summary.totalHours).toBe(1)
+    expect(summary.standardHours).toBe(0.25)
+    expect(summary.overtimeHours).toBe(0.25)
+    expect(summary.extraOvertimeHours).toBe(0.5)
   })
 
   it('ignores overtime when disabled', () => {
@@ -266,8 +282,26 @@ describe('serializeTimesheet', () => {
     const result = serializeTimesheet(rowsByDay, Array(7).fill(''), weekStart, 'User', true)
     expect(result.summary.totalHours).toBe(1)
     expect(result.summary.overtimeHours).toBe(0.75)
+    expect(result.summary.extraOvertimeHours).toBe(0)
     expect(result.summary.standardHours).toBe(0.25)
     expect(result.summary.overtimeHours + result.summary.standardHours).toBeCloseTo(1)
+  })
+
+  it('keeps overtime+ independent of overtime', () => {
+    const rowsByDay = Array.from({ length: 7 }, () => [])
+    const types: ('' | 'standard' | 'overtime' | 'extra-overtime')[] = Array(FULL_DAY_SLOTS).fill('')
+    types[0] = 'standard'
+    types[1] = 'overtime'
+    types[2] = 'extra-overtime'
+    types[3] = 'extra-overtime'
+    rowsByDay[0] = [makeRow('JOB1', [0, 1, 2, 3], types)]
+    const result = serializeTimesheet(rowsByDay, Array(7).fill(''), weekStart, 'User', true)
+    expect(result.summary.totalHours).toBe(1)
+    expect(result.summary.standardHours).toBe(0.25)
+    expect(result.summary.overtimeHours).toBe(0.25)
+    expect(result.summary.extraOvertimeHours).toBe(0.5)
+    expect(result.days[0][0].overtimeHours).toBe(0.25)
+    expect(result.days[0][0].extraOvertimeHours).toBe(0.5)
   })
 
   it('zeros overtime when disabled', () => {

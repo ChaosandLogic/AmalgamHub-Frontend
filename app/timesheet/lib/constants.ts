@@ -19,8 +19,20 @@ export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sa
 
 export type EntryType = 'standard' | 'overtime' | 'extra-overtime'
 
+/** Overtime+ background: error-light enriched with 20% solid error (visibly more saturated). */
+export const EXTRA_OVERTIME_COLORS = {
+  bg: 'color-mix(in srgb, var(--error) 20%, var(--error-light))',
+  border: 'var(--error)',
+  text: 'var(--error-dark, var(--error))',
+  overlapBorder: 'var(--danger-700)',
+} as const
+
 export const ENTRY_TYPE_COLORS: Record<EntryType, { bg: string; border: string; overlapBorder: string }> = {
   standard: { bg: 'var(--primary-200)', border: 'var(--primary)', overlapBorder: 'var(--danger-700)' },
   overtime: { bg: 'var(--warning-light)', border: 'var(--warning)', overlapBorder: 'var(--danger-700)' },
-  'extra-overtime': { bg: 'var(--error-light)', border: 'var(--error)', overlapBorder: 'var(--danger-700)' },
+  'extra-overtime': {
+    bg: EXTRA_OVERTIME_COLORS.bg,
+    border: EXTRA_OVERTIME_COLORS.border,
+    overlapBorder: EXTRA_OVERTIME_COLORS.overlapBorder,
+  },
 }

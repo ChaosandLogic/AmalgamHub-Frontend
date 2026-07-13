@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { startOfWeek, getLocalDateString, parseLocalDateString, weekStartKeyFromApi } from '../lib/utils/dateUtils'
-import { apiGet, apiPost, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
+import { apiGet, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
 import type { CurrentUser } from '../lib/types/user'
 import type { Timesheet } from '../lib/types/timesheet'
 import { useUser } from '../lib/hooks/useUser'
@@ -23,8 +23,6 @@ export default function AdminPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
   const [submittedUsers, setSubmittedUsers] = useState<Map<string, string>>(new Map())
-  const [testingNotifications, setTestingNotifications] = useState(false)
-  const [notificationResult, setNotificationResult] = useState<string | null>(null)
   async function loadUsers() {
     setLoading(true)
     try {
@@ -36,17 +34,15 @@ export default function AdminPage() {
   async function loadSubmissionStatus() {
     try {
       const weekKey = getLocalDateString(selectedWeek)
-      const data = await apiGet<{ timesheets: Timesheet[] }>('/api/timesheets/all')
+      const data = await apiGet<{ timesheets: Timesheet[] }>(
+        `/api/timesheets/all?week=${encodeURIComponent(weekKey)}&summary=true`
+      )
       const submitted = new Map<string, string>()
       ;(data.timesheets || []).forEach((ts) => {
-        const weekStart = ts.week_start_date || ts.weekStartDate
         const userId = ts.user_id || ts.userId
-        if (!weekStart || !userId) return
-        const tsWeekKey = getLocalDateString(new Date(weekStart))
-        if (tsWeekKey === weekKey) {
-          const subDate = ts.submission_date || ts.submissionDate || ''
-          submitted.set(userId, subDate)
-        }
+        if (!userId) return
+        const subDate = ts.submission_date || ts.submissionDate || ''
+        submitted.set(userId, subDate)
       })
       setSubmittedUsers(submitted)
     } catch (e) {
@@ -74,21 +70,6 @@ export default function AdminPage() {
       await apiPatch(`/api/users/${userId}/role`, { role })
       setUsers(prev => prev.map(u => (u.id === userId ? { ...u, role } : u)))
     } catch {}
-  }
-
-  async function testDailyNotifications() {
-    setTestingNotifications(true)
-    setNotificationResult(null)
-    try {
-      const data = await apiPost<{ message?: string }>('/api/admin/test-daily-notifications')
-      setNotificationResult(`✅ Success! ${data.message || 'Notifications sent successfully.'}`)
-    } catch (e: unknown) {
-      setNotificationResult(`❌ Error: ${(e instanceof Error ? e.message : String(e))}`)
-    } finally {
-      setTestingNotifications(false)
-      // Clear result after 5 seconds
-      setTimeout(() => setNotificationResult(null), 5000)
-    }
   }
 
   return (
@@ -166,28 +147,6 @@ export default function AdminPage() {
                 Download Hours
               </button>
             )}
-            <button
-              onClick={testDailyNotifications}
-              disabled={testingNotifications}
-              style={{
-                background: testingNotifications ? 'var(--text-tertiary)' : 'var(--primary)',
-                color: 'white',
-                border: 'none',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: testingNotifications ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                opacity: testingNotifications ? 0.6 : 1
-              }}
-              title="Test daily email notifications (sends to all users with bookings today)"
-            >
-              <span style={{ fontSize: '16px' }}>📧</span>
-              {testingNotifications ? 'Sending...' : 'Test Notifications'}
-            </button>
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 16, background: 'var(--bg-secondary)' }}>
@@ -198,19 +157,6 @@ export default function AdminPage() {
           padding: 24,
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
         }}>
-          {notificationResult && (
-            <div style={{
-              padding: '12px',
-              marginBottom: '16px',
-              borderRadius: '8px',
-              background: notificationResult.includes('✅') ? 'var(--success-light)' : 'var(--error-light)',
-              color: notificationResult.includes('✅') ? 'var(--success-dark)' : 'var(--error-dark)',
-              border: `1px solid ${notificationResult.includes('✅') ? 'var(--success)' : 'var(--error)'}`,
-              fontSize: '14px'
-            }}>
-              {notificationResult}
-            </div>
-          )}
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
               <LoadingSpinner size={28} />
@@ -345,9 +291,10 @@ function UserModal({
         if (!cancelled) setAutosaved(tsData.timesheet)
       } catch {}
       try {
-        const allData = await apiGet<{ timesheets: Timesheet[] }>('/api/timesheets/all')
-        const list = allData.timesheets.filter((ts) => ts.user_id === user.id)
-        if (!cancelled) setSubmitted(list)
+        const allData = await apiGet<{ timesheets: Timesheet[] }>(
+          `/api/timesheets/all?userId=${encodeURIComponent(user.id)}&summary=true`
+        )
+        if (!cancelled) setSubmitted(allData.timesheets || [])
       } catch { if (!cancelled) setError('Failed to load timesheets') }
     })()
     return () => { cancelled = true }

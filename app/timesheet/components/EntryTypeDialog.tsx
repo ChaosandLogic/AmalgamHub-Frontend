@@ -9,6 +9,31 @@ export interface EntryTypeSegment {
   end: number
 }
 
+const ENTRY_TYPE_OPTIONS: {
+  type: EntryType
+  label: string
+  description: string
+}[] = [
+  {
+    type: 'standard',
+    label: 'Standard',
+    description:
+      'Work at your base, or local travel during normal hours.',
+  },
+  {
+    type: 'overtime',
+    label: 'Overtime',
+    description:
+      'Approved site work away from base (client site, exhibition, installation, etc.). Includes travel to/from site and time on site. Paid at 1.33× or taken as TOIL — record your choice on the timesheet. Site rate already covers overtime; no extra premium for hours over 8/day while on site.',
+  },
+  {
+    type: 'extra-overtime',
+    label: 'Overtime+',
+    description:
+      'Overnight site work — when you are required to stay away from home overnight. Paid at 1.5× or taken as TOIL. Must be pre-approved and recorded on your timesheet.',
+  },
+]
+
 interface EntryTypeDialogProps {
   segment: EntryTypeSegment | null
   onSelectType: (type: EntryType) => void
@@ -43,7 +68,7 @@ export default function EntryTypeDialog({
           border: '1px solid var(--border)',
           borderRadius: 12,
           padding: 24,
-          maxWidth: 360,
+          maxWidth: 440,
           width: '90vw',
           boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
         }}
@@ -51,7 +76,7 @@ export default function EntryTypeDialog({
       >
         <h3
           style={{
-            margin: '0 0 16px 0',
+            margin: '0 0 8px 0',
             fontSize: 18,
             fontWeight: 600,
           }}
@@ -63,21 +88,21 @@ export default function EntryTypeDialog({
             margin: '0 0 16px 0',
             fontSize: 13,
             color: 'var(--text-secondary)',
+            lineHeight: 1.45,
           }}
         >
-          Choose how this time block is counted:
+          Choose how this time block is counted under the Site Work and Expenses Policy.
+          Site hours must be pre-approved; unpaid lunch breaks stay as separate entries.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(
-            ['standard', 'overtime'] as EntryType[]
-          ).map((type) => (
+          {ENTRY_TYPE_OPTIONS.map(({ type, label, description }) => (
             <button
               key={type}
               type="button"
               onClick={() => onSelectType(type)}
               style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: 12,
                 padding: '12px 16px',
                 borderRadius: 8,
@@ -96,10 +121,23 @@ export default function EntryTypeDialog({
                   height: 16,
                   borderRadius: 4,
                   background: ENTRY_TYPE_COLORS[type].border,
+                  flexShrink: 0,
+                  marginTop: 2,
                 }}
               />
-              {type === 'standard' && 'Standard'}
-              {type === 'overtime' && 'Overtime'}
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontWeight: 600 }}>{label}</span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 400,
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {description}
+                </span>
+              </span>
             </button>
           ))}
         </div>

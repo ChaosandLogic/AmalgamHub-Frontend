@@ -40,7 +40,7 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
   const [users, setUsers] = useState<any[]>([])
   // Preview positions for bookings being dragged: { bookingId: { startDayIndex, endDayIndex, resourceId?, booking? } }
   const [dragPreview, setDragPreview] = useState<Record<string, { startDayIndex: number, endDayIndex: number, resourceId?: string, booking?: any }>>({})
-  const [sortBy, setSortBy] = useState<'type' | 'name'>('type')
+  const [sortBy, setSortBy] = useState<'type' | 'name' | 'department'>('department')
   const [filterBy, setFilterBy] = useState<string>('all')
   const [departmentFilter, setDepartmentFilter] = useState<string>('all')
   const [jobRoleFilter, setJobRoleFilter] = useState<string>('all')
@@ -138,6 +138,14 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
     
     // Sort resources
     const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'department') {
+        const deptA = (a.department || '').trim()
+        const deptB = (b.department || '').trim()
+        if (!deptA && deptB) return 1
+        if (deptA && !deptB) return -1
+        if (deptA !== deptB) return deptA.localeCompare(deptB)
+        return (a.name || '').localeCompare(b.name || '')
+      }
       if (sortBy === 'type') {
         const typeA = (a.type || 'person').toLowerCase()
         const typeB = (b.type || 'person').toLowerCase()
@@ -1017,7 +1025,7 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
                   </label>
                   <select
                     value={sortBy}
-                    onChange={e => setSortBy(e.target.value as 'type' | 'name')}
+                    onChange={e => setSortBy(e.target.value as 'type' | 'name' | 'department')}
                     style={{
                       flex: 1,
                       padding: '4px 8px',
@@ -1029,6 +1037,7 @@ export default function ResourceSchedule({ monthStart, resources, projects, curr
                     }}
                   >
                     <option value="name">By Name</option>
+                    <option value="department">By Department</option>
                     <option value="type">By Type</option>
                   </select>
                 </div>

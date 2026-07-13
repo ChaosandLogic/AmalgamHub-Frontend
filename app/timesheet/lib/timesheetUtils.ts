@@ -149,8 +149,10 @@ export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boole
   const byJob = new Map<string, any>()
   const dayTotals = Array(7).fill(0)
   const overtimeByDay = Array(7).fill(0)
+  const extraOvertimeByDay = Array(7).fill(0)
   let totalHours = 0
   let totalOvertimeHours = 0
+  let totalExtraOvertimeHours = 0
 
   for (let day = 0; day < 7; day++) {
     const rows = rowsByDay[day] || []
@@ -159,10 +161,12 @@ export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boole
       const hours = (r.slots?.filter(Boolean).length || 0) * 0.25
       // Derive overtime from slotEntryTypes (source of truth) so the summary is
       // correct even when row.overtimeHours is stale (e.g. loaded before settings resolved).
+      const types = r.slotEntryTypes || []
       const overtime = overtimeEnabled
-        ? (r.slotEntryTypes || []).filter(
-            (t: string) => t === 'overtime' || t === 'extra-overtime'
-          ).length * 0.25
+        ? types.filter((t: string) => t === 'overtime').length * 0.25
+        : 0
+      const extraOvertime = overtimeEnabled
+        ? types.filter((t: string) => t === 'extra-overtime').length * 0.25
         : 0
 
       if (!jobNumber) continue
@@ -171,38 +175,49 @@ export function computeWeeklySummary(rowsByDay: any[][], overtimeEnabled?: boole
         byJob.set(jobNumber, {
           days: Array(7).fill(0),
           overtimeDays: Array(7).fill(0),
+          extraOvertimeDays: Array(7).fill(0),
           total: 0,
           overtimeTotal: 0,
+          extraOvertimeTotal: 0,
         })
       }
 
       const entry = byJob.get(jobNumber)!
       entry.days[day] += hours
       entry.overtimeDays[day] += overtime
+      entry.extraOvertimeDays[day] += extraOvertime
       entry.total += hours
       entry.overtimeTotal += overtime
-      entry.standardTotal = entry.total - entry.overtimeTotal
+      entry.extraOvertimeTotal += extraOvertime
+      entry.standardTotal = entry.total - entry.overtimeTotal - entry.extraOvertimeTotal
 
       dayTotals[day] += hours
       overtimeByDay[day] += overtime
+      extraOvertimeByDay[day] += extraOvertime
       totalHours += hours
       totalOvertimeHours += overtime
+      totalExtraOvertimeHours += extraOvertime
     }
   }
 
-  const standardHours = overtimeEnabled ? Math.max(0, totalHours - totalOvertimeHours) : totalHours
+  const premiumHours = totalOvertimeHours + totalExtraOvertimeHours
+  const standardHours = overtimeEnabled ? Math.max(0, totalHours - premiumHours) : totalHours
   const standardByDay = overtimeEnabled
-    ? dayTotals.map((total, i) => Math.max(0, total - overtimeByDay[i]))
+    ? dayTotals.map((total, i) =>
+        Math.max(0, total - overtimeByDay[i] - extraOvertimeByDay[i])
+      )
     : dayTotals
 
   return {
     byJob,
     dayTotals,
     overtimeByDay,
+    extraOvertimeByDay,
     standardByDay,
     totalHours,
     standardHours,
     overtimeHours: totalOvertimeHours,
+    extraOvertimeHours: totalExtraOvertimeHours,
     overtimeEnabled,
   }
 }
@@ -305,7 +320,13 @@ export function serializeTimesheet(
   summary: any
   submissionDate: string
 } {
-  const summary: any = { jobs: {}, totalHours: 0, standardHours: 0, overtimeHours: 0 }
+  const summary: any = {
+    jobs: {},
+    totalHours: 0,
+    standardHours: 0,
+    overtimeHours: 0,
+    extraOvertimeHours: 0,
+  }
   const days = rowsByDay.map((rows) => {
     return rows.map((r: any) => {
       const jobPrefix = r.jobPrefix != null ? String(r.jobPrefix) : ''
@@ -313,16 +334,27 @@ export function serializeTimesheet(
       const fullCode = `${jobPrefix}${jobNumber}`.trim()
       const totalHours = r.slots.filter(Boolean).length * 0.25
       const types = r.slotEntryTypes || Array(r.slots.length).fill('')
-      const overtimeSlots = types.filter((t: string) => t === 'overtime' || t === 'extra-overtime').length
+      const overtimeSlots = types.filter((t: string) => t === 'overtime').length
+      const extraOvertimeSlots = types.filter((t: string) => t === 'extra-overtime').length
       const overtimeHours = overtimeEnabled ? overtimeSlots * 0.25 : 0
+      const extraOvertimeHours = overtimeEnabled ? extraOvertimeSlots * 0.25 : 0
 
       if (fullCode) {
         if (!summary.jobs[fullCode]) {
-          summary.jobs[fullCode] = { totalHours: 0, overtimeHours: 0, standardHours: 0 }
+          summary.jobs[fullCode] = {
+            totalHours: 0,
+            overtimeHours: 0,
+            extraOvertimeHours: 0,
+            standardHours: 0,
+          }
         }
         summary.jobs[fullCode].totalHours += totalHours
         summary.jobs[fullCode].overtimeHours += overtimeHours
-        summary.jobs[fullCode].standardHours += Math.max(0, totalHours - overtimeHours)
+        summary.jobs[fullCode].extraOvertimeHours += extraOvertimeHours
+        summary.jobs[fullCode].standardHours += Math.max(
+          0,
+          totalHours - overtimeHours - extraOvertimeHours
+        )
         summary.totalHours += totalHours
       }
 
@@ -334,6 +366,7 @@ export function serializeTimesheet(
         slotEntryTypes: r.slotEntryTypes?.length === r.slots.length ? r.slotEntryTypes : undefined,
         totalHours,
         overtimeHours: overtimeEnabled ? overtimeHours : undefined,
+        extraOvertimeHours: overtimeEnabled ? extraOvertimeHours : undefined,
       }
     })
   })
@@ -343,22 +376,46 @@ export function serializeTimesheet(
       (sum: number, job: any) => sum + (job.overtimeHours || 0),
       0
     )
-    summary.overtimeHours = Math.min(summary.overtimeHours, summary.totalHours)
-    summary.standardHours = Math.max(0, summary.totalHours - summary.overtimeHours)
+    summary.extraOvertimeHours = Object.values(summary.jobs).reduce(
+      (sum: number, job: any) => sum + (job.extraOvertimeHours || 0),
+      0
+    )
+    const combinedOt = Math.min(
+      summary.overtimeHours + summary.extraOvertimeHours,
+      summary.totalHours
+    )
+    if (combinedOt < summary.overtimeHours + summary.extraOvertimeHours) {
+      // Prefer keeping overtime first, then clamp overtime+
+      summary.overtimeHours = Math.min(summary.overtimeHours, summary.totalHours)
+      summary.extraOvertimeHours = Math.max(
+        0,
+        Math.min(summary.extraOvertimeHours, summary.totalHours - summary.overtimeHours)
+      )
+    }
+    summary.standardHours = Math.max(
+      0,
+      summary.totalHours - summary.overtimeHours - summary.extraOvertimeHours
+    )
   } else {
     summary.overtimeHours = 0
+    summary.extraOvertimeHours = 0
     summary.standardHours = summary.totalHours
     Object.keys(summary.jobs).forEach((jobNumber) => {
       if (summary.jobs[jobNumber]) {
         summary.jobs[jobNumber].overtimeHours = 0
+        summary.jobs[jobNumber].extraOvertimeHours = 0
         summary.jobs[jobNumber].standardHours = summary.jobs[jobNumber].totalHours
       }
     })
   }
 
-  const calculatedTotal = summary.standardHours + summary.overtimeHours
+  const calculatedTotal =
+    summary.standardHours + summary.overtimeHours + summary.extraOvertimeHours
   if (Math.abs(calculatedTotal - summary.totalHours) > 0.01) {
-    summary.standardHours = Math.max(0, summary.totalHours - summary.overtimeHours)
+    summary.standardHours = Math.max(
+      0,
+      summary.totalHours - summary.overtimeHours - summary.extraOvertimeHours
+    )
   }
 
   return {

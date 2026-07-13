@@ -23,6 +23,12 @@ import RowTrack from './RowTrack'
 import TimelineHeaderStrip from './TimelineHeaderStrip'
 import WeeklySummary from './WeeklySummary'
 
+const DAY_ENTRY_CARD_PADDING = Math.round(12 * 1.25)
+const DAY_ENTRY_CARD_INNER_GAP = Math.round(2)
+const DAY_ENTRY_GRID_GAP = 4
+/** Breathing room below the last entry row inside the day card */
+const DAY_ENTRY_ROWS_BOTTOM_PAD = 24
+
 function normalizeRowFromTimesheetApi(raw: any, rowIdx: number): RowData {
   let slots: boolean[]
   if (Array.isArray(raw.slots) && raw.slots.length >= FULL_DAY_SLOTS) {
@@ -134,6 +140,9 @@ export default function TimesheetReadOnlyTimeline({
 
   const noopSeg = () => {}
 
+  const activeRows = rowsByDay[activeDay] ?? []
+  const entryRowCount = activeRows.length
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', minWidth: 0 }}>
       <div
@@ -157,31 +166,31 @@ export default function TimesheetReadOnlyTimeline({
         style={{
           border: '1px solid var(--border)',
           borderRadius: 12,
-          padding: 12,
+          padding: DAY_ENTRY_CARD_PADDING,
           boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
           width: '100%',
           minWidth: 0,
           overflowX: 'hidden',
         }}
       >
-        <h3 style={{ margin: '0 0 8px 0' }}>{DAYS[activeDay]}</h3>
-        {(rowsByDay[activeDay]?.length ?? 0) === 0 ? (
+        <h3 style={{ margin: `0 0 ${DAY_ENTRY_CARD_INNER_GAP}px 0` }}>{DAYS[activeDay]}</h3>
+        {(entryRowCount) === 0 ? (
           <div style={{ color: 'var(--muted)', fontSize: 14 }}>No entries for this day.</div>
         ) : (
           <div
             style={{
               display: 'grid',
-              gap: 4,
-              marginTop: 8,
+              gap: DAY_ENTRY_GRID_GAP,
+              marginTop: DAY_ENTRY_CARD_INNER_GAP,
               gridTemplateColumns: 'minmax(120px, 200px) 1fr auto',
-              gridTemplateRows: `26px repeat(${rowsByDay[activeDay]?.length ?? 0}, 36px)`,
+              gridTemplateRows: `26px repeat(${entryRowCount}, 36px) ${DAY_ENTRY_ROWS_BOTTOM_PAD}px`,
               alignItems: 'stretch',
               width: '100%',
               minWidth: 0,
             }}
           >
             <div style={{ gridColumn: 1, gridRow: 1 }} />
-            {rowsByDay[activeDay]?.map((row, rowIdx) => (
+            {activeRows.map((row, rowIdx) => (
               <div
                 key={row.id}
                 style={{
@@ -212,7 +221,8 @@ export default function TimesheetReadOnlyTimeline({
                   width: totalSlots * SLOT_WIDTH_PX,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 4,
+                  // Must match grid gap so job no. / hours columns align with RowTrack rows
+                  gap: DAY_ENTRY_GRID_GAP,
                   alignItems: 'stretch',
                 }}
               >
@@ -229,7 +239,7 @@ export default function TimesheetReadOnlyTimeline({
                 >
                   <TimelineHeaderStrip totalSlots={totalSlots} />
                 </div>
-                {rowsByDay[activeDay]?.map((row) => (
+                {activeRows.map((row) => (
                   <RowTrack
                     key={row.id}
                     row={row}
@@ -248,10 +258,18 @@ export default function TimesheetReadOnlyTimeline({
                     readOnly
                   />
                 ))}
+                <div
+                  aria-hidden
+                  style={{
+                    height: DAY_ENTRY_ROWS_BOTTOM_PAD,
+                    minHeight: DAY_ENTRY_ROWS_BOTTOM_PAD,
+                    flexShrink: 0,
+                  }}
+                />
               </div>
             </div>
             <div style={{ gridColumn: 3, gridRow: 1 }} />
-            {rowsByDay[activeDay]?.map((row, rowIdx) => (
+            {activeRows.map((row, rowIdx) => (
               <div
                 key={`h-${row.id}`}
                 style={{

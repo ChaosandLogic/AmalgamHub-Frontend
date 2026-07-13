@@ -1,16 +1,27 @@
 'use client'
 
-import { DAYS } from '../lib/constants'
+import { DAYS, EXTRA_OVERTIME_COLORS } from '../lib/constants'
 
 interface WeeklySummaryProps {
   summary: {
-    byJob: Map<string, { days: number[]; total: number; standardHours?: number; overtimeHours?: number }>
+    byJob: Map<
+      string,
+      {
+        days: number[]
+        total: number
+        standardHours?: number
+        overtimeHours?: number
+        extraOvertimeHours?: number
+      }
+    >
     dayTotals: number[]
     totalHours: number
     standardHours?: number
     overtimeHours?: number
+    extraOvertimeHours?: number
     overtimeEnabled?: boolean
     overtimeByDay?: number[]
+    extraOvertimeByDay?: number[]
     standardByDay?: number[]
   }
 }
@@ -18,7 +29,10 @@ interface WeeklySummaryProps {
 export default function WeeklySummary({ summary }: WeeklySummaryProps) {
   const days = DAYS
   const overtimeByDay = summary.overtimeByDay ?? Array(7).fill(0)
+  const extraOvertimeByDay = summary.extraOvertimeByDay ?? Array(7).fill(0)
   const standardByDay = summary.standardByDay ?? summary.dayTotals
+  const extraOvertimeHours = summary.extraOvertimeHours ?? 0
+  const showExtraOvertime = !!summary.overtimeEnabled && extraOvertimeHours > 0
 
   return (
     <section style={{ border: '1px solid var(--border,#ddd)', borderRadius: 8, padding: 12, overflowX: 'auto' }}>
@@ -140,6 +154,42 @@ export default function WeeklySummary({ summary }: WeeklySummaryProps) {
                   {(summary.overtimeHours ?? 0).toFixed(2)}
                 </td>
               </tr>
+              {showExtraOvertime && (
+                <tr style={{ background: EXTRA_OVERTIME_COLORS.bg }}>
+                  <td
+                    style={{
+                      padding: '6px 8px',
+                      fontWeight: 600,
+                      color: EXTRA_OVERTIME_COLORS.text,
+                    }}
+                  >
+                    Overtime+ Hours
+                  </td>
+                  {extraOvertimeByDay.map((h: number, idx: number) => (
+                    <td
+                      key={idx}
+                      style={{
+                        padding: '6px 8px',
+                        textAlign: 'right',
+                        fontWeight: 600,
+                        color: EXTRA_OVERTIME_COLORS.text,
+                      }}
+                    >
+                      {h.toFixed(2)}
+                    </td>
+                  ))}
+                  <td
+                    style={{
+                      padding: '6px 8px',
+                      textAlign: 'right',
+                      fontWeight: 700,
+                      color: EXTRA_OVERTIME_COLORS.text,
+                    }}
+                  >
+                    {extraOvertimeHours.toFixed(2)}
+                  </td>
+                </tr>
+              )}
             </>
           )}
           <tr style={{ background: 'var(--bg-tertiary)' }}>
