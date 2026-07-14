@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { startOfWeek, getLocalDateString, parseLocalDateString, weekStartKeyFromApi } from '../lib/utils/dateUtils'
-import { apiGet, apiDelete, apiPatch, apiDownload } from '../lib/api/client'
+import { apiGet, apiPatch, apiDownload, apiPost } from '../lib/api/client'
 import type { CurrentUser } from '../lib/types/user'
 import type { Timesheet } from '../lib/types/timesheet'
 import { useUser } from '../lib/hooks/useUser'
@@ -22,11 +22,15 @@ export default function AdminPage() {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
-  const [submittedUsers, setSubmittedUsers] = useState<Map<string, string>>(new Map())
+  const [submittedUsers, setSubmittedUsers] = useState<
+    Map<string, { submissionDate: string; timesheetId: string }>
+  >(new Map())
   const [dayStatusByUser, setDayStatusByUser] = useState<
     Map<string, { todayDaySubmitted: boolean; todayInWeek: boolean; weekSubmitted: boolean }>
   >(new Map())
   const [todayInSelectedWeek, setTodayInSelectedWeek] = useState(true)
+  const [unlockTarget, setUnlockTarget] = useState<{ timesheetId: string; userName: string } | null>(null)
+  const [unlocking, setUnlocking] = useState(false)
 
   async function loadUsers() {
     setLoading(true)
@@ -49,12 +53,12 @@ export default function AdminPage() {
       }>(
         `/api/timesheets/all?week=${encodeURIComponent(weekKey)}&summary=true`
       )
-      const submitted = new Map<string, string>()
+      const submitted = new Map<string, { submissionDate: string; timesheetId: string }>()
       ;(data.timesheets || []).forEach((ts) => {
         const userId = ts.user_id || ts.userId
-        if (!userId) return
+        if (!userId || !ts.id) return
         const subDate = ts.submission_date || ts.submissionDate || ''
-        submitted.set(userId, subDate)
+        submitted.set(userId, { submissionDate: subDate, timesheetId: ts.id })
       })
       setSubmittedUsers(submitted)
 
@@ -86,6 +90,22 @@ export default function AdminPage() {
       )
     } catch (e: unknown) {
       toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to download hours export')
+    }
+  }
+
+  async function unlockTimesheet(timesheetId: string, userName: string) {
+    setUnlocking(true)
+    try {
+      await apiPost(`/api/timesheets/${encodeURIComponent(timesheetId)}/revert-to-draft`, {}, {
+        defaultErrorMessage: 'Failed to unlock timesheet',
+      })
+      toast.success(`${userName}'s timesheet is editable again`)
+      await loadSubmissionStatus()
+    } catch (e: unknown) {
+      toast.error((e instanceof Error ? e.message : String(e)) || 'Failed to unlock timesheet')
+    } finally {
+      setUnlocking(false)
+      setUnlockTarget(null)
     }
   }
 
@@ -205,8 +225,9 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {users.map(u => {
-                  const hasSubmitted = submittedUsers.has(u.id)
-                  const submittedDate = submittedUsers.get(u.id)
+                  const submission = submittedUsers.get(u.id)
+                  const hasSubmitted = Boolean(submission)
+                  const submittedDate = submission?.submissionDate
                   const dayStatus = dayStatusByUser.get(u.id)
                   const todaySubmitted = dayStatus?.todayDaySubmitted === true
                   return (
@@ -261,6 +282,25 @@ export default function AdminPage() {
                     </td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>{u.created_at ? new Date(u.created_at).toLocaleString() : '—'}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      {user?.effectiveAdmin === true && hasSubmitted && submission?.timesheetId && (
+                        <button
+                          type="button"
+                          onClick={() => setUnlockTarget({ timesheetId: submission.timesheetId, userName: u.name })}
+                          style={{
+                            background: 'transparent',
+                            color: 'var(--warning-dark, #b45309)',
+                            border: '1px solid var(--warning-dark, #b45309)',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                          }}
+                          title="Revert this week's submission so the user can edit and re-submit"
+                        >
+                          Unlock
+                        </button>
+                      )}
                       <button 
                         onClick={() => setViewUser(u)} 
                         style={{ 
@@ -292,8 +332,30 @@ export default function AdminPage() {
           viewerPayroll={user?.effectiveAdmin === true}
           viewerCanEdit={user?.payrollAccess === true}
           onClose={() => setViewUser(null)}
+          onSubmissionChange={loadSubmissionStatus}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={unlockTarget != null}
+        title="Unlock timesheet"
+        message={
+          unlockTarget
+            ? `Unlock ${unlockTarget.userName}'s submitted timesheet for this week? They will be able to edit and re-submit. FileMaker will be updated again on re-submission.`
+            : ''
+        }
+        confirmText={unlocking ? 'Unlocking…' : 'Unlock'}
+        cancelText="Cancel"
+        type="warning"
+        onConfirm={async () => {
+          if (unlockTarget && !unlocking) {
+            await unlockTimesheet(unlockTarget.timesheetId, unlockTarget.userName)
+          }
+        }}
+        onCancel={() => {
+          if (!unlocking) setUnlockTarget(null)
+        }}
+      />
 
     </div>
   )
@@ -317,18 +379,21 @@ function UserModal({
   viewerPayroll,
   viewerCanEdit,
   onClose,
+  onSubmissionChange,
 }: {
   user: CurrentUser
   viewerPayroll: boolean
   viewerCanEdit: boolean
   onClose: () => void
+  onSubmissionChange?: () => void | Promise<void>
 }) {
   const toast = useToast()
   const [autosaved, setAutosaved] = useState<Timesheet | null>(null)
   const [submitted, setSubmitted] = useState<Timesheet[]>([])
   const [error, setError] = useState('')
   const [selectedTimesheets, setSelectedTimesheets] = useState<Set<string>>(new Set())
-  const [showDeleteTimesheetsConfirm, setShowDeleteTimesheetsConfirm] = useState(false)
+  const [showUnlockTimesheetsConfirm, setShowUnlockTimesheetsConfirm] = useState(false)
+  const [unlockingTimesheets, setUnlockingTimesheets] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -369,34 +434,70 @@ function UserModal({
     }
   }
 
-  const deleteSelectedTimesheets = async () => {
+  const unlockSelectedTimesheets = async () => {
     if (selectedTimesheets.size === 0) {
-      toast.warning('Please select at least one timesheet to delete.')
+      toast.warning('Please select at least one timesheet to unlock.')
       return
     }
 
-    setShowDeleteTimesheetsConfirm(true)
+    setShowUnlockTimesheetsConfirm(true)
   }
 
-  const confirmDeleteTimesheets = async () => {
+  const unlockTimesheetById = async (timesheetId: string) => {
+    setUnlockingTimesheets(true)
+    try {
+      await apiPost(`/api/timesheets/${encodeURIComponent(timesheetId)}/revert-to-draft`, {}, {
+        defaultErrorMessage: 'Failed to unlock timesheet',
+      })
+      setSubmitted(prev => prev.filter(ts => ts.id !== timesheetId))
+      setSelectedTimesheets(prev => {
+        const next = new Set(prev)
+        next.delete(timesheetId)
+        return next
+      })
+      await onSubmissionChange?.()
+      return true
+    } catch (error) {
+      console.error('Error unlocking timesheet:', error)
+      toast.error('Failed to unlock timesheet')
+      return false
+    } finally {
+      setUnlockingTimesheets(false)
+    }
+  }
+
+  const confirmUnlockTimesheets = async () => {
     const timesheetIds = Array.from(selectedTimesheets)
+    setUnlockingTimesheets(true)
     try {
       const results = await Promise.allSettled(
-        timesheetIds.map(id => apiDelete(`/api/timesheets/${id}`))
+        timesheetIds.map(id =>
+          apiPost(`/api/timesheets/${encodeURIComponent(id)}/revert-to-draft`, {}, {
+            defaultErrorMessage: 'Failed to unlock timesheet',
+          })
+        )
       )
       const failedCount = results.filter(r => r.status === 'rejected').length
-      if (failedCount === 0) {
+      const successCount = timesheetIds.length - failedCount
+      if (successCount > 0) {
         setSubmitted(prev => prev.filter(ts => !selectedTimesheets.has(ts.id)))
         setSelectedTimesheets(new Set())
-        toast.success(`Successfully deleted ${timesheetIds.length} timesheet(s).`)
+        await onSubmissionChange?.()
+      }
+      if (failedCount === 0) {
+        toast.success(`Unlocked ${successCount} timesheet(s) — ${user.name} can edit and re-submit.`)
+      } else if (successCount > 0) {
+        toast.warning(`Unlocked ${successCount} timesheet(s); ${failedCount} failed.`)
       } else {
-        toast.error(`Failed to delete ${failedCount} timesheet(s). Please try again.`)
+        toast.error(`Failed to unlock ${failedCount} timesheet(s). Please try again.`)
       }
     } catch (error) {
-      console.error('Error deleting timesheets:', error)
-      toast.error('Failed to delete timesheets')
+      console.error('Error unlocking timesheets:', error)
+      toast.error('Failed to unlock timesheets')
+    } finally {
+      setUnlockingTimesheets(false)
+      setShowUnlockTimesheetsConfirm(false)
     }
-    setShowDeleteTimesheetsConfirm(false)
   }
 
 
@@ -501,27 +602,27 @@ function UserModal({
           <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <h4 style={{ margin: 0 }}>Submitted Timesheets</h4>
-              {submitted.length > 0 && (
+              {submitted.length > 0 && viewerPayroll && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
                     {selectedTimesheets.size} of {submitted.length} selected
                   </span>
                   <button 
-                    onClick={deleteSelectedTimesheets}
-                    disabled={selectedTimesheets.size === 0}
+                    onClick={unlockSelectedTimesheets}
+                    disabled={selectedTimesheets.size === 0 || unlockingTimesheets}
                     style={{ 
-                      background: selectedTimesheets.size === 0 ? 'var(--muted)' : 'var(--danger-200)', 
-                      color: selectedTimesheets.size === 0 ? 'var(--text-tertiary)' : 'var(--text-primary)', 
-                      border: `1px solid ${selectedTimesheets.size === 0 ? 'var(--muted)' : 'var(--danger-200)'}`,
+                      background: selectedTimesheets.size === 0 ? 'var(--muted)' : 'var(--warning-light, #fef3c7)', 
+                      color: selectedTimesheets.size === 0 ? 'var(--text-tertiary)' : 'var(--warning-dark, #b45309)', 
+                      border: `1px solid ${selectedTimesheets.size === 0 ? 'var(--muted)' : 'var(--warning-dark, #b45309)'}`,
                       padding: '4px 8px',
                       borderRadius: '4px',
                       fontSize: '12px',
                       fontWeight: '500',
-                      cursor: selectedTimesheets.size === 0 ? 'not-allowed' : 'pointer',
-                      opacity: selectedTimesheets.size === 0 ? 0.5 : 1
+                      cursor: selectedTimesheets.size === 0 || unlockingTimesheets ? 'not-allowed' : 'pointer',
+                      opacity: selectedTimesheets.size === 0 || unlockingTimesheets ? 0.5 : 1
                     }}
                   >
-                    Delete Selected
+                    Unlock selected
                   </button>
                 </div>
               )}
@@ -530,12 +631,14 @@ function UserModal({
               <thead>
                 <tr>
                   <th align="left" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', width: '40px' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={submitted.length > 0 && selectedTimesheets.size === submitted.length}
-                      onChange={selectAllTimesheets}
-                      style={{ cursor: 'pointer' }}
-                    />
+                    {viewerPayroll && (
+                      <input 
+                        type="checkbox" 
+                        checked={submitted.length > 0 && selectedTimesheets.size === submitted.length}
+                        onChange={selectAllTimesheets}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    )}
                   </th>
                   <th align="left" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>Week Start</th>
                   <th align="left" style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>Submitted</th>
@@ -550,18 +653,45 @@ function UserModal({
                 {submitted.map((ts: any) => (
                   <tr key={ts.id}>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedTimesheets.has(ts.id)}
-                        onChange={() => toggleTimesheetSelection(ts.id)}
-                        style={{ cursor: 'pointer' }}
-                      />
+                      {viewerPayroll && (
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTimesheets.has(ts.id)}
+                          onChange={() => toggleTimesheetSelection(ts.id)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      )}
                     </td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.weekStartDate || ts.week_start_date ? new Date(ts.weekStartDate || ts.week_start_date || '').toLocaleDateString('en-GB') : '—'}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>{ts.submissionDate || ts.submission_date || ts.submitted_at ? new Date(ts.submissionDate || ts.submission_date || ts.submitted_at || '').toLocaleString('en-GB') : '—'}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>{(ts.summary?.totalHours || ts.summary?.total || 0).toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        {viewerPayroll && (
+                          <button
+                            type="button"
+                            disabled={unlockingTimesheets}
+                            onClick={async () => {
+                              const ok = await unlockTimesheetById(ts.id)
+                              if (ok) {
+                                toast.success('Timesheet unlocked for editing')
+                              }
+                            }}
+                            style={{
+                              background: 'transparent',
+                              color: 'var(--warning-dark, #b45309)',
+                              border: '1px solid var(--warning-dark, #b45309)',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              cursor: unlockingTimesheets ? 'not-allowed' : 'pointer',
+                              opacity: unlockingTimesheets ? 0.6 : 1,
+                            }}
+                          >
+                            Unlock
+                          </button>
+                        )}
                         {viewerCanEdit && (
                           <button
                             type="button"
@@ -617,16 +747,20 @@ function UserModal({
         </div>
       </div>
       <ConfirmDialog
-        isOpen={showDeleteTimesheetsConfirm}
-        title="Delete Timesheets"
-        message={`Are you sure you want to delete ${selectedTimesheets.size} timesheet(s)? This action cannot be undone.`}
-        confirmText="Delete"
+        isOpen={showUnlockTimesheetsConfirm}
+        title="Unlock timesheets"
+        message={`Unlock ${selectedTimesheets.size} submitted timesheet(s) for ${user.name}? They will be able to edit and re-submit. FileMaker will be updated again on re-submission.`}
+        confirmText={unlockingTimesheets ? 'Unlocking…' : 'Unlock'}
         cancelText="Cancel"
-        type="danger"
+        type="warning"
         onConfirm={async () => {
-          await confirmDeleteTimesheets()
+          if (!unlockingTimesheets) {
+            await confirmUnlockTimesheets()
+          }
         }}
-        onCancel={() => setShowDeleteTimesheetsConfirm(false)}
+        onCancel={() => {
+          if (!unlockingTimesheets) setShowUnlockTimesheetsConfirm(false)
+        }}
       />
     </div>
   )

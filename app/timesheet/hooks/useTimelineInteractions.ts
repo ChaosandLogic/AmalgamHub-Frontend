@@ -12,6 +12,36 @@ import {
 import { fullJobCode } from '../lib/jobPrefixUtils'
 import { apiPost, apiPut } from '../../lib/api/client'
 
+type SubmitVerification = {
+  status?: string
+  message?: string
+}
+
+function toastSubmitVerification(
+  toast: { success: (m: string) => void; warning: (m: string) => void },
+  verification: SubmitVerification | null | undefined,
+  fallbackSuccess: string
+) {
+  if (verification && typeof verification.status === 'string') {
+    const message = verification.message || fallbackSuccess
+    switch (verification.status) {
+      case 'verified':
+        toast.success(message)
+        break
+      case 'mismatch':
+      case 'sync_failed':
+        toast.warning(message)
+        break
+      case 'sync_disabled':
+      default:
+        toast.success(message)
+        break
+    }
+    return
+  }
+  toast.success(fallbackSuccess)
+}
+
 export type SelectedSegment = {
   dayIndex: number
   rowId: string
@@ -487,7 +517,10 @@ export function useTimelineInteractions({
       if (editUserId) {
         payload.userId = editUserId
       }
-      const response = await apiPost<{ submittedDays?: boolean[] }>(
+      const response = await apiPost<{
+        submittedDays?: boolean[]
+        verification?: SubmitVerification
+      }>(
         '/api/timesheets/submit-day',
         payload
       )
@@ -500,7 +533,11 @@ export function useTimelineInteractions({
           return next
         })
       }
-      toast.success(`${DAYS[activeDay]} marked as submitted`)
+      toastSubmitVerification(
+        toast,
+        response.verification,
+        `${DAYS[activeDay]} marked as submitted`
+      )
     } catch (error: unknown) {
       toast.error(
         (error instanceof Error ? error.message : String(error)) ||
@@ -530,25 +567,11 @@ export function useTimelineInteractions({
       }))
       justSubmittedRef.current = true
 
-      const verification = response?.verification
-      if (verification && typeof verification.status === 'string') {
-        const message = verification.message || 'Timesheet submitted.'
-        switch (verification.status) {
-          case 'verified':
-            toast.success(message)
-            break
-          case 'mismatch':
-          case 'sync_failed':
-            toast.warning(message)
-            break
-          case 'sync_disabled':
-          default:
-            toast.success(message)
-            break
-        }
-      } else {
-        toast.success('Timesheet submitted successfully!')
-      }
+      toastSubmitVerification(
+        toast,
+        response?.verification,
+        'Timesheet submitted successfully!'
+      )
     } catch (error: unknown) {
       toast.error(
         (error instanceof Error ? error.message : String(error)) || 'Failed to submit timesheet. Please try again.'
